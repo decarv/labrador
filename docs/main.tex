@@ -1,0 +1,1197 @@
+% Próximos passos:
+%
+%   1. Terminar o componente de avaliação dos experimentos baseado em nDCG. (1a sem. Setembro)
+%   2. Criar consultas e estabelecer o ranking de resultados para poder realizar experimentos preliminares. (1a sem. Setembro)
+%   3. Rodar experimentos preliminares de relevância. (1a sem. Setembro)
+%   4. Aprender sobre Índice Invertido e descrever sua implementação. (2-3a sem. Setembro)
+%   5. Aprender sobre Indexação de Embeddings e descrever a implementação desses índices. (2-3a sem. Setembro)
+%   6. Criar índices para LLM mais performático em (3). (4a sem. Setembro)
+%   7. Criar índices para busca com BM25 (usar weaviate). (4a sem. Setembro)
+%   8. Realizar experimentos com BM25 e LLMs. (4a sem. Setembro)
+%   9. Melhorar o sistema de recuperação avaliando o resultado de 8 (1a sem. Setembro)
+%   10. Subir o experimento e coletar consultas e rankings de documentos. (1a sem. Outubro)
+%   11. Comparar o resultado do sistema de teses e do meu sistema para as consultas coletadas em 10 (2a sem. Outubro)
+%   12. Terminar relatórios.
+
+
+% ------------------------------------------------------------------------
+% ------------------------------------------------------------------------
+% abnTeX2: Modelo de Trabalho Academico (tese de doutorado, dissertacao de
+% mestrado e trabalhos monograficos em geral) em conformidade com
+% ABNT NBR 14724:2011: Informacao e documentacao - Trabalhos academicos -
+% Apresentacao
+% ------------------------------------------------------------------------
+% ------------------------------------------------------------------------
+
+\documentclass[
+	% -- opções da classe memoir --
+	12pt,				% tamanho da fonte
+	openright,			% capítulos começam em pág ímpar (insere página vazia caso preciso)
+	oneside,			% para impressão em verso e anverso. Oposto a oneside
+	a4paper,			% tamanho do papel.
+	% -- opções da classe abntex2 --
+	%chapter=TITLE,		% títulos de capítulos convertidos em letras maiúsculas
+	%section=TITLE,		% títulos de seções convertidos em letras maiúsculas
+	%subsection=TITLE,	% títulos de subseções convertidos em letras maiúsculas
+	%subsubsection=TITLE,% títulos de subsubseções convertidos em letras maiúsculas
+	% -- opções do pacote babel --
+	english,			% idioma adicional para hifenização
+	french,				% idioma adicional para hifenização
+	spanish,			% idioma adicional para hifenização
+	brazil				% o último idioma é o principal do documento
+	]{abntex2}
+
+% ---
+% Pacotes básicos
+% ---
+\usepackage{lmodern}			% Usa a fonte Latin Modern
+\usepackage[T1]{fontenc}		% Selecao de codigos de fonte.
+\usepackage[utf8]{inputenc}		% Codificacao do documento (conversão automática dos acentos)
+\usepackage{lastpage}			% Usado pela Ficha catalográfica
+\usepackage{indentfirst}		% Indenta o primeiro parágrafo de cada seção.
+\usepackage{color}				% Controle das cores
+\usepackage{graphicx}			% Inclusão de gráficos
+\usepackage{microtype} 			% para melhorias de justificação
+% ---
+
+% ---
+% Pacotes adicionais, usados apenas no âmbito do Modelo Canônico do abnteX2
+% ---
+
+% ---
+% Pacotes de citações
+% ---
+\usepackage[brazilian,hyperpageref]{backref}	 % Paginas com as citações na bibl
+\usepackage[num]{abntex2cite}
+\citebrackets[]
+
+% citar com
+% \cite{}
+% \citeonline{}
+% \citeauthoronline{}
+% \citeyear{}
+% \citebrackets() é possível!
+
+\usepackage{amsmath}
+\usepackage{biblatex}	% Citações padrão ABNT
+
+\addbibresource{books.bib} %Imports bibliography file
+\addbibresource{articles.bib} %Imports bibliography file
+\addbibresource{online.bib} %Imports bibliography file
+\addbibresource{misc.bib} %Imports bibliography file
+\addbibresource{inproceedings.bib} %Imports bibliography file
+% \addbibresource{thesis.bib} %Imports bibliography file
+
+% ---
+% CONFIGURAÇÕES DE PACOTES
+% ---
+
+% ---
+% Configurações do pacote backref
+% Usado sem a opção hyperpageref de backref
+\renewcommand{\backrefpagesname}{Citado na(s) página(s):~}
+% Texto padrão antes do número das páginas
+\renewcommand{\backref}{}
+% Define os textos da citação
+\renewcommand*{\backrefalt}[4]{
+	\ifcase #1 %
+		Nenhuma citação no texto.%
+	\or
+		Citado na página #2.%
+	\else
+		Citado #1 vezes nas páginas #2.%
+	\fi}%
+% ---
+
+% ---
+% Informações de dados para CAPA e FOLHA DE ROSTO
+% ---
+\titulo{Título}
+\autor{Henrique Araújo de Carvalho}
+\local{São Paulo, Brasil}
+\data{2023}
+\orientador{Daniel Macêdo Batista}
+%\coorientador{Coorientador}
+\instituicao{%
+  Universidade de São Paulo
+  \par
+  Instituto de Matemática e Estatística
+  \par
+  Graduação}
+\tipotrabalho{Trabalho de Formatura}
+% O preambulo deve conter o tipo do trabalho, o objetivo,
+% o nome da instituição e a área de concentração
+%\preambulo{Preâmbulo.}
+% ---
+
+% ---
+% Configurações de aparência do PDF final
+
+% alterando o aspecto da cor azul
+\definecolor{blue}{RGB}{41,5,195}
+
+% informações do PDF
+\makeatletter
+\hypersetup{
+     	%pagebackref=true,
+		pdftitle={\@title},
+		pdfauthor={\@author},
+    	pdfsubject={\imprimirpreambulo},
+	    pdfcreator={LaTeX with abnTeX2},
+		pdfkeywords={abnt}{latex}{abntex}{abntex2}{trabalho acadêmico},
+		colorlinks=true,       		% false: boxed links; true: colored links
+    	linkcolor=blue,          	% color of internal links
+    	citecolor=blue,        		% color of links to bibliography
+    	filecolor=magenta,      		% color of file links
+		urlcolor=blue,
+		bookmarksdepth=4
+}
+\makeatother
+% ---
+
+% ---
+% Espaçamentos entre linhas e parágrafos
+% ---
+
+% O tamanho do parágrafo é dado por:
+\setlength{\parindent}{1.3cm}
+
+% Controle do espaçamento entre um parágrafo e outro:
+\setlength{\parskip}{0.2cm}  % tente também \onelineskip
+
+% ---
+% compila o indice
+% ---
+\makeindex
+% ---
+
+% ----
+% Início do documento
+% ----
+\begin{document}
+
+% Retira espaço extra obsoleto entre as frases.
+\frenchspacing
+
+% ----------------------------------------------------------
+% ELEMENTOS PRÉ-TEXTUAIS
+% ----------------------------------------------------------
+% \pretextual
+
+% ---
+% Capa
+% ---
+\imprimircapa
+% ---
+
+% ---
+% Folha de rosto
+% (o * indica que haverá a ficha bibliográfica)
+% ---
+\imprimirfolhaderosto*
+% ---
+
+% ---
+% Inserir a ficha bibliografica
+% ---
+
+% Isto é um exemplo de Ficha Catalográfica, ou ``Dados internacionais de
+% catalogação-na-publicação''. Você pode utilizar este modelo como referência.
+% Porém, provavelmente a biblioteca da sua universidade lhe fornecerá um PDF
+% com a ficha catalográfica definitiva após a defesa do trabalho. Quando estiver
+% com o documento, salve-o como PDF no diretório do seu projeto e substitua todo
+% o conteúdo de implementação deste arquivo pelo comando abaixo:
+%
+% \begin{fichacatalografica}
+%     \includepdf{fig_ficha_catalografica.pdf}
+% \end{fichacatalografica}
+\begin{fichacatalografica}
+	\vspace*{\fill}					% Posição vertical
+	\hrule							% Linha horizontal
+	\begin{center}					% Minipage Centralizado
+	\begin{minipage}[c]{12.5cm}		% Largura
+
+	\imprimirautor
+
+	\hspace{0.5cm} \imprimirtitulo  / \imprimirautor. --
+	\imprimirlocal, \imprimirdata-
+
+	\hspace{0.5cm} \pageref{LastPage} p. : il. (algumas color.) ; 30 cm.\\
+
+	\hspace{0.5cm} \imprimirorientadorRotulo~\imprimirorientador\\
+
+	\hspace{0.5cm}
+	\parbox[t]{\textwidth}{\imprimirtipotrabalho~--~\imprimirinstituicao,
+	\imprimirdata.}\\
+
+	\hspace{0.5cm}
+		1. Palavra-chave1.
+		2. Palavra-chave2.
+		I. Orientador.
+		II. Universidade xxx.
+		III. Faculdade de xxx.
+		IV. Título\\
+
+	\hspace{8.75cm} CDU 02:141:005.7\\
+
+	\end{minipage}
+	\end{center}
+	\hrule
+\end{fichacatalografica}
+% ---
+
+% % ---
+% % Inserir errata
+% % ---
+% \begin{errata}
+% Elemento opcional da \citeonline[4.2.1.2]{NBR14724:2011}. Exemplo:
+
+% \vspace{\onelineskip}
+
+% FERRIGNO, C. R. A. \textbf{Tratamento de neoplasias ósseas apendiculares com
+% reimplantação de enxerto ósseo autólogo autoclavado associado ao plasma
+% rico em plaquetas}: estudo crítico na cirurgia de preservação de membro em
+% cães. 2011. 128 f. Tese (Livre-Docência) - Faculdade de Medicina Veterinária e
+% Zootecnia, Universidade de São Paulo, São Paulo, 2011.
+
+% \begin{table}[htb]
+% \center
+% \footnotesize
+% \begin{tabular}{|p{1.4cm}|p{1cm}|p{3cm}|p{3cm}|}
+%   \hline
+%    \textbf{Folha} & \textbf{Linha}  & \textbf{Onde se lê}  & \textbf{Leia-se}  \\
+%     \hline
+%     1 & 10 & auto-conclavo & autoconclavo\\
+%    \hline
+% \end{tabular}
+% \end{table}
+
+% \end{errata}
+% % ---
+
+% ---
+% Inserir folha de aprovação
+% ---
+
+% Isto é um exemplo de Folha de aprovação, elemento obrigatório da NBR
+% 14724/2011 (seção 4.2.1.3). Você pode utilizar este modelo até a aprovação
+% do trabalho. Após isso, substitua todo o conteúdo deste arquivo por uma
+% imagem da página assinada pela banca com o comando abaixo:
+%
+% \includepdf{folhadeaprovacao_final.pdf}
+% %
+% \begin{folhadeaprovacao}
+
+%   \begin{center}
+%     {\ABNTEXchapterfont\large\imprimirautor}
+
+%     \vspace*{\fill}\vspace*{\fill}
+%     \begin{center}
+%       \ABNTEXchapterfont\bfseries\Large\imprimirtitulo
+%     \end{center}
+%     \vspace*{\fill}
+
+%     \hspace{.45\textwidth}
+%     \begin{minipage}{.5\textwidth}
+%         \imprimirpreambulo
+%     \end{minipage}%
+%     \vspace*{\fill}
+%    \end{center}
+
+%    Trabalho aprovado. \imprimirlocal, 24 de novembro de 2012:
+
+%    \assinatura{\textbf{\imprimirorientador} \\ Orientador}
+%    \assinatura{\textbf{Professor} \\ Convidado 1}
+%    \assinatura{\textbf{Professor} \\ Convidado 2}
+%    %\assinatura{\textbf{Professor} \\ Convidado 3}
+%    %\assinatura{\textbf{Professor} \\ Convidado 4}
+
+%    \begin{center}
+%     \vspace*{0.5cm}
+%     {\large\imprimirlocal}
+%     \par
+%     {\large\imprimirdata}
+%     \vspace*{1cm}
+%   \end{center}
+
+% \end{folhadeaprovacao}
+% % ---
+
+% % ---
+% % Dedicatória
+% % ---
+% \begin{dedicatoria}
+%    \vspace*{\fill}
+%    \centering
+%    \noindent
+%    \textit{ Este trabalho é dedicado às crianças adultas que,\\
+%    quando pequenas, sonharam em se tornar cientistas.} \vspace*{\fill}
+% \end{dedicatoria}
+% % ---
+
+% ---
+% Agradecimentos
+% ---
+\begin{agradecimentos}
+Agradecimentos.
+\end{agradecimentos}
+% ---
+
+% % ---
+% % Epígrafe
+% % ---
+% \begin{epigrafe}
+%     \vspace*{\fill}
+% 	\begin{flushright}
+% 		\textit{``Não vos amoldeis às estruturas deste mundo, \\
+% 		mas transformai-vos pela renovação da mente, \\
+% 		a fim de distinguir qual é a vontade de Deus: \\
+% 		o que é bom, o que Lhe é agradável, o que é perfeito.\\
+% 		(Bíblia Sagrada, Romanos 12, 2)}
+% 	\end{flushright}
+% \end{epigrafe}
+% % ---
+
+% ---
+% RESUMOS
+% ---
+
+% resumo em português
+\setlength{\absparsep}{18pt} % ajusta o espaçamento dos parágrafos do resumo
+\begin{resumo}
+ Segundo a \citeonline[3.1-3.2]{NBR6028:2003}, o resumo deve ressaltar o
+ objetivo, o método, os resultados e as conclusões do documento. A ordem e a extensão
+ destes itens dependem do tipo de resumo (informativo ou indicativo) e do
+ tratamento que cada item recebe no documento original. O resumo deve ser
+ precedido da referência do documento, com exceção do resumo inserido no
+ próprio documento. (\ldots) As palavras-chave devem figurar logo abaixo do
+ resumo, antecedidas da expressão Palavras-chave:, separadas entre si por
+ ponto e finalizadas também por ponto.
+
+ \textbf{Palavras-chaves}: latex. abntex. editoração de texto.
+\end{resumo}
+
+% resumo em inglês
+\begin{resumo}[Abstract]
+ \begin{otherlanguage*}{english}
+   This is the english abstract.
+
+   \vspace{\onelineskip}
+
+   \noindent
+   \textbf{Key-words}: latex. abntex. text editoration.
+ \end{otherlanguage*}
+\end{resumo}
+
+% ---
+% inserir lista de ilustrações
+% ---
+%\pdfbookmark[0]{\listfigurename}{lof}
+%\listoffigures*
+%\cleardoublepage
+% ---
+% ---
+% inserir lista de tabelas
+% ---
+%\pdfbookmark[0]{\listtablename}{lot}
+%\listoftables*
+%\cleardoublepage
+% ---
+% ---
+% inserir lista de abreviaturas e siglas
+% ---
+%\begin{siglas}
+%  \item[ABNT] Associação Brasileira de Normas Técnicas
+%  \item[abnTeX] ABsurdas Normas para TeX
+%\end{siglas}
+% ---
+% ---
+% inserir lista de símbolos
+% ---
+%\begin{simbolos}
+%  \item[$ \Gamma $] Letra grega Gama
+%  \item[$ \Lambda $] Lambda
+%  \item[$ \zeta $] Letra grega minúscula zeta
+%  \item[$ \in $] Pertence
+%\end{simbolos}
+% ---
+% ---
+% inserir o sumario
+% ---
+\pdfbookmark[0]{\contentsname}{toc}
+\tableofcontents*
+\cleardoublepage
+% ---
+
+% ----------------------------------------------------------
+% ELEMENTOS TEXTUAIS
+% ----------------------------------------------------------
+\textual
+
+\chapter*[Introdução]{Introdução}
+\addcontentsline{toc}{chapter}{Introdução}
+\label{chap:intro}
+
+% EM CONSTRUÇÃO -------------------------------------------------------------------------------------------------------------------------
+
+O propósito desse trabalho é desenvolver um sistema de recuperação de trabalhos acadêmicos, com ênfase em técnicas modernas
+de recuperação desse tipo de documento.
+
+Descrevo o desenvolvimento desse sistema comparando duas técnicas para recuperação e ranqueamento de documentos.
+A primeira técnica, baseada em busca por palavras-chave, é a base da implementação de sistemas de recuperação de informação tradicionais.
+A segunda técnica, baseada em busca por \textit{embeddings} (``EBR -- Embeddings Based Search''), é como a implementação de novos sistemas de recuperação
+tem sido feita recentemente.
+
+Minha contribuição com o presente trabalho é traçar as bases da criação de um sistema moderno de recuperação de trabalhos acadêmicos nacionais.
+A forma que utilizo para medir o sucesso do meu sistema é compará-lo com o sistema de busca por palavras-chave da Biblioteca Digital
+de Teses e Dissertações da Universidade de São Paulo \footnote{https://www.teses.usp.br/}.
+
+No capítulo \ref{ch:recuperacao-de-informacao} discuto ...
+
+
+\chapter{Recuperação de Informação}\label{ch:recuperacao-de-informacao}
+
+Recuperação de informação pode assumir diferentes definições.
+Para este trabalho, recuperação de informação é definida como a disciplina que estuda como encontrar documentos relevantes, de natureza desestruturada, em meio a uma coleção de documentos, a
+partir de uma consulta. \cite{manning2008introduction}
+
+Documentos relevantes são aqueles que satisfazem a necessidade do usuário. \cite{manning2008introduction}
+A definição de relevância é específica de um problema e depende de fatores como
+características da busca, do usuário a que ela se destina, da consulta, dos documentos, e de
+tempo e espaço da busca, o que confere à relevância uma natureza subjetiva e dinâmica.
+Como explicam \citeauthor{Ceri2013}, ``a relevância é multifacetada, sendo determinada não só pelo conteúdo de um
+resultado recuperado, mas também por aspectos como autoridade, credibilidade, especificidade, exaustividade,
+atualidade e clareza de sua fonte.''
+
+Documentos são de natureza desestruturada quando não possuem um modelo de dados definido, ou que são difíceis para um computador
+estruturar, interpretar, analisar ou segmentar. \cite{manning2008introduction}
+Exemplos de dados desestruturados são texto, imagem, áudio e vídeo, que são encontrados na forma de
+documentos como páginas da web, artigos científicos, imagens, filmes, dentre outros formatos.
+Em contraste, documentos estruturados são os que possuem uma estrutura relacional clara ou são fáceis para um computador estruturar.
+A disciplina de estudo de dados estruturados é a recuperação de dados, que se baseia em uma forma expressa e bem
+definida de recuperação, articulada de maneira formal, sobre informação que possui um modelo pré-definido de dados. \cite{JurafskyMartin2023}
+
+A recuperação de informação é tratada como um campo de conhecimento que abrange uma variedade de
+sistemas, aqui chamados de sistemas de recuperação de informação, que se manifestam de diferentes formas.
+Por exemplo, sistemas de recuperação de informação são componentes centrais em motores de busca,
+sistemas de filtragem de informação, sistemas de sumarização de documentos, sistemas de perguntas e respostas,
+sistemas de recomendação, dentre outros. \cite{Ceri2013}
+
+Todos esses sistemas têm em comum um modelo de recuperação de informação, que descreve como um sistema de recuperação de informação
+processa, armazena, recupera e apresenta os dados desestruturados.
+Passa-se a discutir aspectos fundamentais de um sistema de recuperação de informação, especificamente àqueles que
+servem à recuperação de documento.
+
+\section{Sistemas de Recuperação de Informação}\label{sec:sistemas-de-recuperacao-de-informacao}
+
+Defino o sistema de recuperação de informação (``IRS -- Information Retrieval System'') como a implementação de um modelo de recuperação de informação (``IRM -- Information Retrieval Model'').
+O IRM fornece um arcabouço teórico que descreve como a recuperação de informações funciona e pode ser definido formalmente pela quádrupla: \cite{Ceri2013}
+
+\begin{equation}
+\text{IRM} = \{D, Q, F, R(q_k, d_j)\}
+\label{eq:irm}
+\end{equation}
+
+onde
+\begin{itemize}
+    \item \(D\) é um conjunto de representações \(d_j\) de documentos;
+    \item \(Q\) é um conjunto de representações \(q_k\) de consultas;
+    \item \(F\) é a estratégia usada para modelar a representação de documentos e consultas e suas relações;
+    \item \(R(q_k, d_j)\) é a função de ranqueamento que associa \(d_j\) a um número real que denota sua relevância para \(q_k\).
+\end{itemize}
+
+Diferentes modelos de recuperação de informação
+% variam em suas representações para os documentos e consultas, além de sua estratégia para modelar essas representações e para ranquear um documento, ou seja,
+irão se diferenciar na definição de $D$, $Q$, $F$ e $R$, a depender das
+características dos documentos, das características dos usuários, da forma de consultar desses usuários e da estratégia usada para recuperar e ranquear um documento
+na coleção.
+IRMs podem ser categorizados pela abordagem usada para recuperar informação.
+
+Modelos que se encaixam na abordagem de correspondência exata possuem uma forma estruturada
+de realizar consultas que favorece usuários que buscam rigor na pesquisa, mas não
+são capazes de ranquear os resultados com base em relevância, como o modelo booleano. \cite{Hiemstra2009}
+
+Modelos que se encaixam na abordagem de espaço vetorial (``VSM -- Vector Space Models'') comparam a representação vetorial dos documentos e a representação
+vetorial da consulta e classificam os documentos com base no grau de similaridade entre as representações.
+Nesse caso, grau de similaridade pode ser medido por meio de uma medida de associação, como produto interno entre
+os vetores.
+Segundo \citeauthor{Hiemstra2009}, uma desvantagem desse modelo é a incerteza sobre como o vetor deve ser representado e como
+essa representação deve ser implementada.
+O problema de representar vetorialmente um texto é chamado de ponderação de termo e isso é discutido na
+Seção~\ref{sec:representacao-vetorial-de-texto}.
+
+Modelos que se encaixam na abordagem probabilística são usados para definir o modelo de representações de documentos ou
+as consultas por meio de cálculo de probabilidade.
+Esses modelos buscam desenvolver de forma mais precisa a ponderação de termos da abordagem de espaço vetorial. \cite{Hiemstra2009}
+
+Importante notar que não há uma forma precisa, ou mesmo uma preocupação, de categorizar fielmente um modelo
+\footnote{Por exemplo, algumas abordagens probabilísticas de representar documentos, como BM-25, são também uma forma abordagem de espaço vetorial.}
+e que não existe uma abordagem ou um modelo melhor que outros para implementação de um sistema.
+A categorização dos modelos servem ao estudo acadêmico dos IRM, e não de um IRS.
+Um IRS pode, inclusive, implementar diferentes modelos de IRMs.
+Cada modelo tem vantagens e desvantagens e sua utilização depende das características do sistema que se pretende implementar.
+Como explicado acima, a recuperação de informação é subjetiva e dinâmica e o valor de um modelo vai depender, acima de tudo,
+dos resultados obtidos após a implementação do sistema, avaliados em um contexto específico.
+
+O propósito desse trabalho é desenvolver um sistema de recuperação de trabalhos acadêmicos, com ênfase em técnicas modernas
+de recuperação desse tipo de documento.
+Portanto, ignoro a discussão de modelos que se baseiam na abordagem de correspondência exata para discutir modelos que se
+baseiam nas abordagens de espaço vetorial e probabilística.
+Dentro desse contexto, objetivo encontrar a melhores formas de modelar a representação de documentos e consultas, bem
+como a melhor forma de ranquear os documentos em um sistema de recuperação de trabalhos acadêmicos.
+
+\section{Representação Vetorial de Documentos}\label{sec:representacao-vetorial-de-documentos}
+
+Semântica vetorial é o nome que se dá à forma padrão de representar texto por meio de vetores.
+A base da atual semântica vetorial nasceu nos anos 50, quando foram propostas ideias de representar
+o significado de uma palavra por meio de sua distribuição no uso da linguagem e de representar essa distribuição por
+meio de um vetor.
+\cite{JurafskyMartin2023}
+
+Essa abordagem é chamada de hipótese distribucional, que estipula que palavras que ocorrem em um mesmo contexto possuem significados similares. \cite{PilehvarCamacho-Collados2022}
+Ocupar o mesmo contexto significa que seu uso na linguagem é similar, que ela ocorre nas mesmas posicões em uma frase ou que mantém relação parecida com as demais palavras.
+Palavras que ocorrem em um mesmo contexto, têm, assim, similaridade semântica. Talvez elas sejam palavras sinônimas,
+ou talvez elas carreguem algum sentido comum quando usadas.
+Paralelamente, documentos que possuem distribuição parecida de palavras são considerados similares.
+
+A ideia por trás da semântica vetorial é, portanto, representar palavras como um ponto em um espaço multidimensional derivado das distribuições de vizinhanças \cite{JurafskyMartin2023},
+possibilitando a medida de um grau de similaridade de termos ou documentos por meio de um cálculo de similaridade entre suas representações vetoriais.
+
+As representacões vetoriais podem ser classificadas entre técnicas baseadas na contagem de frequência de ocorrência
+ou co-ocorrência das palavras, que resultam em vetores esparsos, e técnicas baseadas em redes neurais, que resultam
+em vetores densos.
+Discuto abaixo as técnicas mais atuais para geração de vetores esparsos (\ref{subsec:vetores-esparsos}) e vetores densos (\ref{subsec:vetores-densos-embeddings})
+usados na comparação de documentos, bem como o cálculo de similaridade entre documentos (\ref{subsec:similaridade-entre-documentos}).
+
+% [TODO: Criar exemplos de um vetor representando um texto simples]
+
+\subsection{Vetores Esparsos}\label{subsec:vetores-esparsos}
+
+Vetores esparsos são geralmente baseados em uma matriz de co-ocorrência, uma forma de representar a ocorrência de um
+termo em relação a um documento.
+No caso de matrizes que relacionam termos e documentos, são chamadas de matrizes de termo-documento.
+% ou em relação a outros termos (matrizes de termo-termo).
+\cite{JurafskyMartin2023}
+
+Nessas matrizes, um vetor coluna denota um documento, que é representado pelas frequências de seus termos.
+Cada linha $i$ da matriz representa uma palavra e cada coluna $j$ representa
+um documento.
+Ou seja, o valor $M_{i,j}$ representa a frequência da palavra $P$ da linha $i$ em um documento $D$ da coluna $j$.
+
+Em uma matrix $m \times n$, cada vetor de palavra tem dimensão $n$ e cada vetor de documento tem dimensão $m$.
+A comparação entre dois documentos se dá pelo cálculo de similaridade de vetores coluna e a
+comparação de sentido de duas palavras se dá pelo cálculo de similaridade de vetores linha.
+
+% [COMENTÁRIO: em análise lexica, qual a diferença entre sentido e significado?]
+Uma consequência desse tipo de representação é que o número de linhas é igual ao tamanho do vocabulário e o número de colunas
+é igual ao número de documentos.
+Notadamente essa representação ocupa um espaço proporcional a $m \times n$ e é esparsa, já que a distribuição de palavras por documento e
+a distruição de documentos em cada palavra é pequena quando comparada à quantidade de documentos e ao tamanho do vocabulário.
+Usar essa representação para recuperação de informação exige pensar em armazenamento e recuperação de matrizes com essas
+características específicas.
+\cite{JurafskyMartin2023}
+
+% Em matrizes termo-termo, termos são relacionados com outros termos que ocorrem no mesmo contexto.
+% Nesse caso, cada palavra P ocupa uma linha i e uma coluna j, ou seja, cada vetor de palavra tem dimensão |P|, e o valor $Mi,j$ é a frequência em que uma palavra ocorre no
+% mesmo contexto de outra.
+% Um contexto é definido como uma janela de $k$ palavras na mesma sentença e a ocorrência no mesmo contexto é medida como
+% $(k-1)/2$ palavras à direita e $(k-1)/2$ palavras à esquerda.
+% Essa representação ocupa um espaço proporcional a |P| x |P| e também é esparsa.
+% \cite{JurafskyMartin2023}
+
+Entretanto, a análise crua da frequência de termos por documento ou por termos não é representativa da similaridade
+entre documentos. % ou entre palavras. No caso de documentos, são dois motivos.
+Primeiro, a alta frequência de uma palavra em um documento pode afetar desproporcionalmente uma comparação entre documentos
+simplesmente por um documento ter mais palavras que o outro.
+Segundo, algumas palavras, como artigos, aparecem com muita frequência em documentos e não
+carregam grande significado semântico que possa ser usado para extrair relações de similaridade.
+Por esses motivos, necessita-se de uma medida, baseada nos valores das frequências, que passe a representar
+a importância de uma palavra para um documento.
+
+Uma medida comum é a função de Frequência de Termo e Inverso da Frequência por Documento (``tf-idf -- \textit{Term Frequency Inverse Document Frequency}''), que busca resolver os dois problemas acima ao
+calcular um peso $w_{t,d}$ para um termo $t$ e um documento $d$, por meio do produto $tf_{t,d} \times idf_{t}$, em que $tf_{t,d}$ é
+a frequência normalizada do termo $t$ no documento $d$, e $idf_{t}$ é o número total de documentos dividido pelo número de documentos em que o termo ocorre $df$:
+
+\begin{equation}
+\text{tf}(t, d) = \frac{f_{t, d}}{\sum_{t' \in d} f_{t', d}}
+\label{eq:tf}
+\end{equation}
+
+\begin{equation}
+\text{idf}(t) = \log \frac{N}{\text{df}(t)}
+\label{eq:idf}
+\end{equation}
+
+\begin{equation}
+\text{tf-idf}(t, d) = \text{tf}(t, d) \times \text{idf}(t)
+\label{eq:tfidf1}
+\end{equation}
+
+\begin{equation}
+\text{tf-idf}(t, d) = \frac{f_{t, d}}{\sum_{t' \in d} f_{t', d}} \times \log \frac{N}{\text{df}(t)}
+\label{eq:tfidf_expanded}
+\end{equation}
+
+Uma variação do tf-idf é a função BM25 (\textit{Best Match 25}), que adiciona dois hiperparâmetros $k_1$ e $b$ e a medida $avgDL$ para prover mais controle na influência de tf e na influência do tamanho do documento: \cite{wikipedia2023okapibm25}
+
+\begin{equation}
+\text{score}(D,Q) = \sum_{i=1}^{n} \text{idf}(q_i) \cdot \frac{f(q_i, D) \cdot (k_1 + 1)}{f(q_i, D) + k_1 \cdot \left(1 - b + b \cdot \frac{|D|}{\text{avgDL}}\right)}
+\label{eq:bm25}
+\end{equation}
+
+Variações da BM25 são o estado da arte na representação vetorial esparsas de documentos e, por esse motivo, essa função ainda é largamente implementada em sistemas de recuperação de informações \cite{}. Apesar de performar satisfatoriamente nesses sistemas, em termos de relevância dos documentos retornados, métodos que usam vetores densos têm superado métodos que usam vetores esparsos em algumas tarefas de recuperação de informação. \cite{thakur-2021-BEIR}
+
+% Information retrieval is the process of searching and returning relevant documents for a query from
+% a collection. In our paper, we focus on text retrieval and use document as a cover term for text of
+% any length in the given collection and query for the user input, which can be of any length as well.
+% Traditionally, lexical approaches like TF-IDF and BM25 [ 55 ] have dominated textual information
+% retrieval. Recently, there is a strong interest in using neural networks to improve or replace these
+% lexical approaches. In this section, we highlight a few neural-based approaches and we refer the
+% reader to Lin et al. [37] for a recent survey in neural retrieval
+% https://arxiv.org/pdf/2104.08663.pdf
+
+
+% Isso ocorre porque vetores densos têm uma capacidade maior de representar similaridade semântica,
+Isso ocorre porque vetores esparsos têm uma boa capacidade de representar documentos para uma comparação por similaridade textual, mas não para similaridade semântica. Como se pode imaginar pela definição acima, para o caso em que o documento relevante contém palavras sinônimas, ou ideias semelhantes, mas não uma distribuição de palavras similar à da consulta, a busca BM25 torna-se insatisfatória. \cite{thakur-2021-BEIR} Para os casos em que a busca semântica é necessária, existem os vetores densos.
+% Pesquisar: lexical gap
+
+
+%[COMENTÁRIO: mas isso nao considera o tamanho do documento... Eu entendo que squash com logaritmo acaba normalizando tambem,
+%mas a ideia deveria ser normalizar dentro de um documento, pegar a frequencia dentro do documento.]
+%pequenas diferenças de frequência de uma palavra entre documentos não deveria representar grandes diferenças
+%em similaridade.
+%É mais interessante, assim, modificar a escala para graduar uma palavra por sua frequência do documento apenas quando ela
+%for extremamente frequente.
+
+% No caso de termos, um motivo.
+% Palavras muito frequentes em todos os contextos representam alto ruído (assim como no caso de documentos), mas não carregam
+% grande significado semântico.
+% Nesse caso, a medida usada para resolver esse problema entre termos é \textit{Pointwise Mutual Information} (PMI), que objetiva
+% calcular a probabilidade em que duas palavras aparecem em um contexto em relação à probabilidade que seria esperado encontrar essas palavras em um
+% mesmo contexto, dado que elas são independentes.
+% Isso é representado por um cálculo de probabilidades, em que p(x,y) é a probabilidade conjunta de aparecerem os termos x e y
+% em um mesmo contexto e p(x) e p(y) são as probabilidades marginais de x e y ocorrerem, respectivamente.
+
+% Sabendo que, para t e w termos de uma coleção, $p(t) = \frac{count(t)}{\sum{w}count(w)}$,
+
+% $$\text{PMI}(x, y) = \log \frac{p(x, y)}{p(x) \cdot p(y)}$$
+
+% Como a relação de co-ocorrência entre termos é simétrica, pode-se interpretar as dimensões de um vetor linha da matriz de co-ocorrência
+% termo-termo como sendo contextos, o que faz dessa uma matriz de co-ocorrência termo-contexto.
+% Assim, para um termo t e um contexto c,
+
+% $$\text{PMI}(t,c) = \log \frac{p(t,c)}{p(t) \cdot p(c)}$$
+
+% Como o valor de PMI pode ser negativo, algo a que não se consegue atribuir um sentido no caso de similaridade entre termo
+% e contexto, usa-se a medida Positive PMI (PPMI), calculada como
+
+% $$\text{PPMI}(x, y) = \max \left(0, \log \frac{p(x, y)}{p(x) \cdot p(y)}\right)$$
+
+% Essa medida tem a tendência de ser enviesada para contextos pouco frequentes (imagine p(c) << 1).
+% Uma forma de corrigir isso é computar a probabilidade por meio da função $P_{\alpha}(c)$, em que se eleva a probabilidade
+% de um contexto à $\alpha$ potência, com o objetivo de
+% ``aumentar a probabilidade de contextos raros e diminuir o PMI ($P_{\alpha} > P(c)$ quando $c$ é raro)''
+% \cite{JurafskyMartin2023} p. 118.
+
+\subsection{Vetores Densos (\textit{embeddings})}\label{subsec:vetores-densos-embeddings}
+
+A solução proposta para o problema de abordagens léxicas (\textit{lexical gap}) foi a utilização de redes neurais para criar representações vetoriais densas (\textit{embeddings}) em que palavras seriam mapeadas para um espaço vetorial n-dimensional.
+
+A primeira arquitetura representativa de técnicas modernas de geração de vetores densos foi proposta por \citeauthor{mikolov2013efficient}. O modelo criado pelos autores, denominado Word2vec, foi capaz de criar representações de palavras que captavam significado semântico que ia além da semântica extraída da sintática. Além disso, operações algébricas com as representações vetoriais geradas pelo modelo eram traduzidas em operações semânticas.
+
+% https://www.youtube.com/watch?v=Mt7UJNKxscA&list=PLSg1mducmHTPZPDoal4m59pPxxsceXF-y&index=7
+
+A partir disso, novas arquiteturas foram propostas para a geração de embeddings de texto \cite{}, dentre as quais destacam-se as arquiteturas baseadas na arquitetura de transformers Transformers \cite{}, arquitetura introduzida pelos autores \citeauthor{}, e que implementou inovações de arquitetura que expandiram o estado da arte em resultados de diversas tarefas de PNL. \cite{DBLP:journals/corr/abs-1810-04805}
+
+Essas novas arquiteturas deram início
+
+
+% - Diferentes associações ou similaridades
+% - Analogia / Similaridade Relacional
+
+% ----------------------------------------------------------------------------------------------------------------------
+% TÓPICOS:
+%- Word2vec: pequenos e densos; skip-gram; SGNS; static embeddings;
+% - O problema com Word2Vec e Contextual Embeddings
+%- Dynamic Contextual Embeddings
+% ----------------------------------------------------------------------------------------------------------------------
+
+% [2]
+
+% Quanto maior a dimensionalidade do embedding maior a qualidade dele.
+
+% OpenAI and Cohere embeddings, which require a paid API call to generate them, can be considered higher quality due to a dimensionality of a few thousand.
+
+% One reason it makes sense to use a paid API to generate embeddings is if your data is multilingual (Cohere is known to possess high-quality multilingual embedding models that **[are known to perform better](https://docs.cohere.com/docs/multilingual-language-models#model-performance)** than open source variants).
+
+% E se, ao invés de criar mais embeddings, eu mudar a dimensionalidade do embedding?
+
+% In his excellent review post**[3](https://thedataquarry.com/posts/vector-db-2/#fn:3)**, Colin Harman describes how a lot of companies, due to the plethora of vector DB marketing material out there today, experience “tunnel vision” when it comes to the search & retrieval landscape. As practitioners, we have to remember that vector databases are not the panacea of search – they are very good at *semantic* search, but in many cases, traditional keyword search can yield more relevant results and increased user satisfaction**[4](https://thedataquarry.com/posts/vector-db-2/#fn:4)**. Why is that? It’s largely to do with the fact that ranking based on metrics like cosine similarity causes results that have a higher similarity score to appear above partial matches that may contain specific input keywords, reducing their relevance to the end user.
+
+% *Cross Encoders Models →* usar depois dos Bi-directional?
+
+% including an agent-based framework like LangChain
+
+% - o que melhora um embedding? Um embedding parece melhorar quando eu divido mais um grande texto. Mas o embedding também piora quando eu diminuo até um nível atômico, então existe um ponto ótimo. Qual o ponto ótimo? Eu acredito que sejam níveis que contêm um núcleo semântico. Então keywords deveriam ser divididas por letras maíusculas em um PDF, a não ser que elas sejam uma sigla. Ainda, nem todas as keywords seguem esse padrão, mas acho que só de pegar alguns já é uma vantagem. As frases podem ser divididas entre ponto. E o título é um ponto só.
+% - Os embeddings ignoram stop words? Segundo esse link sim: https://github.com/UKPLab/sentence-transformers/issues/383. Eu consegui replicar isso:
+% Outras Referências
+% [2]https://thedataquarry.com/posts/vector-db-2/#how-are-embeddings-generated
+% [3]https://techcrunch.com/sponsor/nvidia/how-the-revolution-of-natural-language-processing-is-changing-the-way-companies-understand-text/
+% [4] https://qdrant.tech/articles/hybrid-search/
+% [5] https://colinharman.substack.com/p/beware-tunnel-vision-in-ai-retrieval
+% [6] https://thedataquarry.com/posts/vector-db-2/#fn:4
+
+\subsection{Domain Adaptation}
+
+% https://www.sbert.net/examples/domain_adaptation/README.html?highlight=fine%20tuning
+
+
+\subsection{Similaridade Entre Documentos}\label{subsec:similaridade-entre-documentos}
+
+Depois de representar documentos por meio de vetores,
+a similaridade entre documentos pode ser medida através de operações de álgebra linear que medem
+similaridade entre vetores.
+
+Uma forma comum de medir a similaridade entre dois vetores é através do produto interno, definido por:
+
+\begin{equation}
+\text{dot}(\mathbf{u}, \mathbf{v})  = \mathbf{u} \cdot \mathbf{v} = \sum_{i}u_{i}v_{i}
+\label{eq:dot_product}
+\end{equation}
+
+Uma interpretação para o resultado do produto interno é a medição de quanto um vetor $u$ está no mesmo sentido e direção de outro vetor $v$. Essa é uma interpretação conveniente para compreender a medida de similaridade entre duas representações vetoriais de texto.
+
+Um problema de realizar medições com o produto interno é comparar similaridades, pois $dot(u,v)$ pode ser arbitrariamente grande ou pequeno a depender dos valores dos componentes $u_i$ e $v_i$ dos vetores. Nesse caso, pode parecer mais sensato calcular o produto interno com vetores normalizados, o que resulta no valor do cosseno do ângulo entre os vetores e leva todas as comparações
+a um intervalo entre 0 e 1, uma vez $v_i, u_i \geq 0, \forall i$:
+
+\begin{equation}
+\cos (\mathbf{u}, \mathbf{v})  = \frac{\mathbf{u} \cdot \mathbf{v}}{\|\mathbf{u}\| \|\mathbf{v}\|}
+\label{eq:cosine_similarity}
+\end{equation}
+
+Assim, é possível comparar similaridades entre diferentes vetores de palavras.
+Quanto mais próximo de 1 for o resultado, mais similares são os termos comparados.
+Essa técnica funciona para qualquer modelo vetorial de texto.
+
+No caso da similaridade entre um documento $d$ e um conjunto de documentos $V$, tal que $V = \{\mathbf{v_1}, \mathbf{v_2}, ... \mathbf{v_n}\}$,
+pode-se calcular o cosseno entre a representação de $d$, denotada por $\mathbf{u}$, e o centróide $\mathbf{c}$ de $V$, dado por:
+
+\begin{equation}
+\mathbf{c} = \frac{1}{n} \sum_{i=1}^{n} \mathbf{v_i}
+\label{eq:centroid}
+\end{equation}
+
+Dessa forma, a similaridade entre $d$ e $V$ é dada por $\cos⁡ (\mathbf{u},\mathbf{c})$ .
+
+A escolha da forma de comparação, entretanto, vai depender da arquitetura do modelo e de seu treinamento. Alguns modelos são treinados para serem usados com produto interno, outros com cálculo de cosseno e, para outros, não vai fazer qualquer diferença.
+
+% Por exemplo,
+%[TODO: CRIAR UM EXEMPLO EM PYTHON E USAR].
+
+\section{Arquitetura de um Sistema de Recuperação de Informação}
+\label{sec:arquitetura-de-um-sistema-de-recuperacao-de-informacao}
+
+Acima foram discutidas abordagens diferentes para a descrição de um IRM.
+Como explicado, modelos diferentes de IRM servem a propósitos diferentes e variam a depender das
+características dos documentos, das características dos usuários, da forma de consultar usada por esses usuários e da estratégia usada para recuperar e ranquear um documento
+na coleção.
+
+Da forma semelhante, a arquitetura de um IRS depende dos IRMs usados como base teórica, além dos aspectos concretos
+avaliados no desenvolvimento de software.
+A concepção dessa arquitetura e de seus elementos tem variado principalmente nos últimos anos,
+com uma nova descrição dos estágios da recuperação de informação pela indústria,
+baseados na introdução de vetores densos, por meio de modelos de recuperação e ranqueamento treinados por redes neurais, também chamada de busca profunda \cite{}, ou busca neural \cite{}, ou busca baseada em \textit{embeddings} \cite{}.
+
+Uma arquitetura de um IRS deve considerar o caso concreto, mas é possível identificar ``elementos
+universais'' nas arquiteturas desses sistemas.
+Tais ``elementos universais'' são discutidos a seguir, denominados ``componentes'' do sistema, conforme demonstrado na figura \ref{fig:irs-arquitetura},
+em que as setas representam o fluxo de dados.
+
+\begin{figure}
+    \centering
+    \includegraphics{}
+    \caption{Arquitetura de um Sistema de Recuperação de Informação}
+    \label{fig:irs-arquitetura}
+\end{figure}
+
+A ingestão e o processamento de dados é o primeiro passo no processo de construção de um IRS e é realizada pelo Componente de Ingestão dos Dados.
+Isso envolve a coleta de dados de várias fontes, como a \textit{web}, bases de dados, sistemas de arquivos, entre outros.
+Os \textit{crawlers} são geralmente utilizados para rastrear e baixar o conteúdo da \textit{web}.
+Uma vez coletados, os dados são processados e são extraídas informações relevantes e removidas de informações irrelevantes por meio do uso de técnicas de PLN.
+
+O processo de organização dos dados de forma que possibilite a busca eficiente é chamado de indexação,
+realizada pelo Componente de Indexação.
+Nesse componente, os dados são armazenados em uma estrutura chamada índice, que permite ao sistema recuperar
+rapidamente os documentos relevantes.
+
+A interface do usuário, onde as consultas são inseridas, faz parte do Componente de Consulta.
+Este sistema recebe as consultas dos usuários e as traduz em comandos que podem ser executados pelo sistema de busca.
+O mecanismo pode aplicar algoritmos e heurísticas para processar a consulta e melhorar seus resultados.
+
+É no Componente de Recuperação onde a consulta é executada para recuperar do índice.
+É aqui onde são implementados algoritmos para determinar os resultados mais relevantes para a consulta.
+Os resultados são, depois de recuperados, ranqueados e retornados ao usuário.
+
+Para o projeto proposto nesse estudo, o componente mais relevante para a discussão das novas técnicas de busca profunda são os Componentes de Indexação e de Recuperação, uma vez que suas implementações afetam mais diretamente a qualidade de um IRS, afetando a forma que a relevância dos documentos é computada e a velocidade com que essa relevância é computada.
+
+Nada obstante, os demais componentes do sistema de recuperação serão tangenciados, principalmente na medida em que afetam os principais componentes acima. Dito isso, discute-se as técnicas tradicionais e as novas técnicas de implementação dos Componentes de Indexação e de Recuperação.
+
+\subsection{Componente de Ingestão de Dados}\label{}
+
+\subsection{Componente de Indexação}\label{subsec:componente-de-indexação}
+
+
+\subsection{Componente de Recuperação}\label{subsec:componente-de-recuperação}
+
+
+\section{Avaliação do Sistema de Recuperação de Informação}\label{sec:avaliacao-do-sistema-de-recuperacao-de-informacao}
+
+% Ler: https://arxiv.org/pdf/2104.08663.pdf
+% https://arxiv.org/pdf/2206.12993.pdf
+
+% Ler: https://medium.com/@readsumant/understanding-ndcg-as-a-metric-for-your-recomendation-system-5cd012fb3397
+%      https://www.youtube.com/watch?v=EnlLr6S7c5A
+%      https://towardsdatascience.com/demystifying-ndcg-bee3be58cfe0
+%      https://mariofilho.com/ndcg-normalized-discounted-cumulative-gain-em-machine-learning/
+
+A relevância é o principal critério para avaliar a qualidade da informação recuperada.
+Sua natureza subjetiva e dinâmica requer avaliação dentro do contexto específico do sistema de recuperação de informação,
+com base em métricas predefinidas.
+
+Quando a ordem dos documentos recuperados não é relevante, métricas comumente usadas na avaliação da relevância da
+informação são precisão e recall.
+É possível, ainda, balancear ambas as métricas com uma média harmônica, métrica chamada de \textit{F-measure}.
+[5]
+
+Precisão avalia a ``solidez'' do sistema, provendo uma medida para a proporção de documentos relevantes dentre os
+recuperados.
+Recall avalia a ``completude'' do sistema, provendo uma medida para a proporção de documentos relevantes que não
+foram recuperados.
+[5]
+
+Sejam \textit{true positives} (TP) os documentos relevantes e recuperados,
+\textit{false positives} (FP) os que não são relevantes e foram recuperados,
+\textit{true negatives} (TN) os que não são relevantes e não foram recuperados,
+\textit{false negatives} (FN) os documentos que são relevantes e não foram recuperados,
+então precisão e recall podem ser descritos como
+
+$$P = \frac{TP}{TP + FP}$$
+
+$$R = \frac{TP}{TP + FN}$$
+
+Um sistema ideal deveria ter alta precisão e alto recall, próximos de 1, minimizando o número de FP e FN.
+Entretanto, isso nem sempre é possível, já que geralmente existe um \textit{trade-off} entre precisão e recall. [5 p.8]
+
+As métricas apresentadas acima não levam em consideração a ordem dos documentos retornados, e funcionam bem para avaliar sistemas que retornam conjuntos de documentos em qualquer ordem.
+Nem todos os sistemas de recuperação de informação se inserem nesse contexto.
+Para alguns sistemas, a ordem, ou \textit{rank}, é uma qualidade importante para a recuperação.
+Nesses casos, outras métricas devem ser consideradas, como o ganho de precisão ao aumentar a recall, \textit{Average Precision} (AP), ou a precisão em relação aos primeiros k documentos, \textit{Precision at k} (P@k).
+É isso que a precisão média calcula
+$$\text{AP} = \frac{1}{\text{R}} \sum_{k=1}^n P(k) \times \text{rel}(k)$$
+A precisão média calcula a precisão ao longo de diferentes k-cortes do resultado, somando e obtendo a média das precisões obtidas.
+% TODO: Falar também sobre MAP.
+O problema dessas abordagens é que elas tratam a relevância de um documento como algo binário, não supondo um ranqueamento entre os documentos.
+
+Uma forma mais eficiente de avaliar sistemas de recuperação baseados em ranqueamento é avaliar os documentos sob uma escala de relevância.
+A construção dessa escala se dá pela classificação dos melhores resultados para buscas específicas e sua avaliação pela medição da qualidade dos resultados baseados em pontuações para o ranqueamento.
+Uma boa métrica para testar isso é a \textit{Discounted Cumulative Gain} (DCG).
+A DCG é capaz de medir um ganho baseado na posição do documento recuperado por uma busca, premiando quando um documento relevante aparece no topo da busca e penalizando quando aparece no fim da busca. Para $rel_i$ a relevância avaliada do resultado na posição $i$, a DCG é descrita como
+
+$$\text{DCG} = \sum_{k=1}^n \frac{\text{rel}(k)}{\log_2(k + 1)}$$
+
+
+
+% ---------------------------------------------------------------------------------------------------------------------------------------
+%
+%
+% NADA MUDOU A PARTIR DAQUI
+%
+%
+%
+% ---------------------------------------------------------------------------------------------------------------------------------------
+
+
+
+
+
+
+
+
+\chapter{Implementação do Sistema de Recuperação de Informação de Teses}
+\label{ch:implementacao-do-sistema-de-recuperacao-de-informacao-de-teses}
+
+O problema inerente aos algoritmos clássicos de recuperação de informação que se baseiam no tf-idf ou no BM-25 é que a
+pesquisa deve ser conduzida utilizando as palavras exatas presentes no texto que se busca.
+Essa abordagem é problemática, pois o usuário do sistema pode compreender o que deseja buscar sem, necessariamente,
+conhecer as palavras específicas que constam no documento alvo.
+
+Conforme discutido em \citeauthor{JurafskyMartin2023} p.277, uma alternativa promissora a esse dilema é a utilização de vetores densos (embeddings),
+em contraste com os vetores esparsos tradicionais.
+Essa estratégia tem sido explorada tanto por acadêmicos quanto por empresas em diversos artigos publicados.
+Ao empregar modelos modernos como o BERT para codificar a consulta e os documentos, e ao realizar um produto vetorial
+subsequente para calcular um score de similaridade, é possível oferecer resultados mais afinados com a intenção do usuário.
+
+Entretanto, como destacado em \citeauthor{JurafskyMartin2023} p.278, a implementação de embeddings na busca ainda representa um desafio em aberto.
+As áreas que despertam maior interesse incluem o ajuste preciso dos modelos para aumentar a relevância dos documentos
+recuperados e a questão de como armazenar e recuperar vetores densos de maneira eficaz.
+
+A discussão sobre este novo paradigma de busca semântica, que emprega embeddings,
+oscila principalmente entre duas características fundamentais: qualidade e eficiência.
+Estas são, frequentemente, qualidades conflitantes. Para alcançar uma qualidade superior,
+o sistema requer uma busca mais abrangente, o que tende a aumentar a complexidade e reduzir a eficiência.
+Por outro lado, para garantir eficiência, a busca de vetores densos precisa ser realizada de maneira aproximada,
+o que pode comprometer a qualidade.
+
+O desafio de arquitetar sistemas de busca pode ser correlacionado ao de arquitetar sistemas de recomendação.
+Conforme \citeauthor{yan2021system}, esses sistemas são categorizados como ``discovery system: recommendation and search''.
+Tal categorização ocorre pois os componentes de um sistema que realiza buscas são semelhantes aos de um sistema de
+recomendação.
+Na indústria, esses sistemas são geralmente divididos em dois componentes: a recuperação de candidatos e a etapa de
+ranqueamento.
+Essa divisão, embora não sempre implementada, é fundamental para compreendermos as principais partes dos sistemas modernos.
+Adicionalmente, outras divisões são feitas, como a separação entre processos e componentes em ambientes offline e online.
+
+O autor \citeauthor{yan2021system} apresentou exemplos de arquiteturas para sistemas de recomendação e de busca
+utilizadas na indústria,
+dividindo-as conforme os padrões: (a) Obter embeddings e construir um índice ANN ou um grafo de conhecimento para
+encontrar itens similares; (b) Ranquear esses embeddings selecionados em um espaço menor, de acordo com outro modelo
+ou heurísticas do negócio (por exemplo, o ranqueamento pode considerar características do usuário e histórico de busca
+em uma \textit{feature store} criada offline).
+
+Portanto, esses sistemas transformam a busca em embedding antes de aplicar o índice ANN para encontrar itens similares.
+Também é possível utilizar grafos ou árvores de decisão, e há uma etapa de ranqueamento após a redução do espaço de
+busca, usando características que não são consideradas no modelo de embedding. Modelos de ranqueamento também podem
+ser usados, como um modelo de "learning to rank" ou classificação.
+
+Outros autores expandem a noção da arquitetura desse sistema de 2 estágios para 4 estágios: Retrieval, Filtering,
+Scoring e Ordering [2].
+Com isso, além dos modelos de recuperação e ranqueamento, são adicionadas políticas
+específicas para filtrar e ordenar o resultado para cada usuário. Isso permite melhorar o sistema de busca,
+sem depender exclusivamente do modelo de recuperação ou ranqueamento.
+
+Alguns exemplos desse tipo de sistema incluem o sistema de recomendação do Instagram e a linguagem IGQL, e a
+arquitetura de sistema do Quora, que segue a divisão de Retrieval, Filtering, Scoring e Ordering. A Instacart
+compartilhou uma arquitetura similar em 2016.
+
+% Para compreender melhor como esses sistemas funcionam, estudei [3], que explica, em alto nível, como funciona a arquitetura de busca do Semantic Scholar. Basicamente, a query passa para a Elasticsearch (AWS), e os 1000 primeiros resultados são ranqueados pelo ranker, usando um ranker LightGBM com um objetivo LambdaRank.
+
+% Na minha arquitetura, devo considerar o que é importante em cada etapa. Quero desenvolver um sistema que busque rapidamente teses, sem necessidade de criar novos embeddings ou índices rapidamente, então posso priorizar a velocidade de consulta. Algumas bases de dados podem ser otimizadas em diferentes níveis, dependendo do momento do sistema de busca.
+
+% Em uma visão geral, destacam-se três componentes de um sistema de recuperação de informação: um módulo de obtenção da consulta, um módulo de análise da consulta e busca, e um módulo de administração do conteúdo. Estes módulos são uma visão geral e podem conter subdivisões, como um sistema de ingestão de dados, um parseador, etc.
+
+% [1] Yan, Ziyou. (Jun 2021). System Design for Recommendations and Search. [eugeneyan.com](http://eugeneyan.com/). https://eugeneyan.com/writing/system-design-for-discovery/.
+% ```latex
+% @article{yan2021system,
+%   title   = {System Design for Recommendations and Search},
+%   author  = {Yan, Ziyou},
+%   journal = {eugeneyan.com},
+%   year    = {2021},
+%   month   = {Jun},
+%   url     = {https://eugeneyan.com/writing/system-design-for-discovery/}
+% }
+% ```
+% [2] Recommender Systems, Not Just Recommender Models https://medium.com/nvidia-merlin/recommender-systems-not-just-recommender-models-485c161c755e
+% [3] https://blog.allenai.org/building-a-better-search-engine-for-semantic-scholar-ea23a0b661e7
+
+\section{Arquitetura do Sistema}\label{sec:arquitetura-do-sistema}
+
+\section{Ingestão de Dados}\label{sec:ingestao-de-dados}
+% ---------------------------------------------------------------------------------------------------------------------
+% TÓPICOS:
+% - Falar sobre o Crawler e sobre o repositório de teses da usp
+% ---------------------------------------------------------------------------------------------------------------------
+
+\section{Processamento de Conteúdo}\label{sec:processamento-de-conteudo}
+% ---------------------------------------------------------------------------------------------------------------------
+% TÓPICOS:
+% - Document parsing -> reconhecimento e estruturação;
+% - Análise léxica
+% - Remoção de stop words????
+% (Não mais que uma página)
+% ---------------------------------------------------------------------------------------------------------------------
+
+\section{Indexação}\label{sec:indexacao}
+% ---------------------------------------------------------------------------------------------------------------------
+% NOTAS:
+% \cite{Hiemstra2009} discute, em p. 7, dificuldades da implementação do modelo de espaço vetorial. Isso porque o cálculo
+% da similaridade de cosseno depende de todos os componentes da representação vetorial. Entretanto, isso não está disponível
+% em um índice invertido. Na prática, os valores normalizados e o produto vetorial precisam ser usados. Então, ou eles são
+% adicionados em um
+%
+% No podcast [...], o entrevistado discute: In memory index vs disk index → HMSW INDEX (good trade off but memory
+% hungry) — memmap in qdrant (good inn performance) knn, qdrant is the best in disk. Hybrid search. Pre filtering vs
+% post filtering. Self hosted vs cloud.
+% ---------------------------------------------------------------------------------------------------------------------
+
+% ---------------------------------------------------------------------------------------------------------------------
+% TÓPICOS:
+% Por que usar um índice.
+% Quais são os tipos de índices usados.
+% Quais os índices usados no meu sistema.
+% - ANN (approximate nearest neighbor): an algorithm that uses distance algorithms to locate nearby vectors.
+% - kNN: an algorithm that uses proximity to make predictions about grouping.
+% - (SPTAG) Space partition tree and graph: a library for large scale approximate nearest neighbors.
+% - Faiss: Facebook’s similarity search algorithm.
+% - HNSW (hierarchical navigable small world): a multilayered graph approach for determining similarity.
+% ---------------------------------------------------------------------------------------------------------------------
+
+\section{Busca}\label{sec:busca}
+
+\section{Ranqueamento}\label{sec:ranqueamento}
+
+\section{Experimentos Para Avaliação do Sistema de Recuperação de Informação de Teses}\label{sec:experimentos-para-avaliacao-do-sistema-de-recuperacao-de-informacao-de-teses}
+
+\chapter{Experimentos}
+\label{ch:exper}
+% ---------------------------------------------------------------------------------------------------------------------
+% NOTAS
+% -----
+% Positioning the Query in the Vector Space
+% Uma coisa para manter em mente é uma forma de adaptação de indexação por feedback descrita
+% em \cite{Hiemstra2009} p.7. Um algoritmo de relevance feedback sugerido por Rocchio, em que um vetor é adaptado de
+% acordo com o resultado da busca dos documentos e do resultado de relevância calculado .
+% ---------------------------------------------------------------------------------------------------------------------
+
+Neste capítulo, descrevo o processo de desenvolvimento e adaptação do sistema com base em um \textit{feedback loop}.
+Depois do desenvolvimento de um sistema modular como descrito no Capítulo~\ref{ch:mecanismo-de-busca-semantica}, torna-se
+fácil configurar os componentes do sistema para ajustá-los com base em resultados de experimentos.
+Os experimentos tiveram um objetivo de entender o funcionamento corrente do sistema e ajustar seus componentes
+para melhorar sua eficiência, em termos de relevância dos documentos retornados em uma consulta (\textbf{qualidade})
+e em termos de \textbf{velocidade} para retornar tais documentos.
+
+Inicialmente, comparo a eficiência de diferentes abordagens de implementação dos componentes do sistema de recuperação
+de informação com dados de teses obtidas no repositório de teses da Universidade de São Paulo.
+Em seguida, descrevo um experimento usado para comparar o novo sistema com o sistema de recuperação usado no \textit{website}
+do repositório de teses da Universidade de São Paulo.
+
+\section{Melhorando a Indexação}
+No primeiro experimento que realizei, tentei usar toda a informação de alguns .pdfs selecionados das teses para criar
+embeddings.
+Além de ter sido demorado para criar cada um embedding, a criação de um embedding por documento se mostrou insatisfatória
+para a busca, dada que muita informação era perdida, além de que o documento tinha muita sujeira, o que exige trabalho
+extra de limpeza manual.
+Essa abordagem resultou em um sistema lento para ser criado e trabalhoso.
+Ou seja, não resultou em um bom sistema para fazer a busca.
+
+No segundo experimento que realizei, usei apenas as informações de metadados contidas no site de teses, sem utilizar a tese em si. Os metadados são título, resumo e palavras-chave. Juntei esses 3 em um texto só para gerar cada embedding. O tempo de criação de tudo é em torno de alguns minutos. Com isso, fui capaz de criar um sistema de busca que abarcava todas as teses do site de tese da USP. O sistema foi capaz de obter resultados em menos de 1 segundo. Entretanto, notou-se que a busca foi insatisfatória em algumas instâncias.
+
+Para demonstrar isso, estabeleci o texto de busca "ddos attack". A busca encontrou o vetor mais similar em 0.19s e o resultado retornado foi:
+
+1. Title:  Mitigating DDoS attacks on IoT through machine learning and network functions virtualization
+Author:  Oliveira, Guilherme Werneck de
+Minha suposição é de que, se esse valor retornado é o mais relevante para "ddos attack", ele deve também ser o mais relevante, ou pelo menos perder para algum mais relevante ainda, para "ddos attack and machine learning". Mas não foi isso que aconteceu, ao buscar por "ddos attack and machine learning", a busca encontrou:
+
+1. Title:  Machine learning in complex networks
+Author:  Breve, Fabricio Aparecido
+2. Title:  Architecture and development of a real-time multiple content generator system for video games
+Author:  Pereira, Leonardo Tortoro
+3. Title:  Performance prediction of application executed on GPUs using a simple analytical model and machine learning techniques
+Author:  González, Marcos Tulio Amarís
+4. Title:  Mitigating DDoS attacks on IoT through machine learning and network functions virtualization
+Author:  Oliveira, Guilherme Werneck de
+Mesmo que sem utilizar métodos formais de avaliação, nota-se que o sistema de busca não foi relevante ao buscar por "ddos attack and machine learning". Minha suposição é de que muita informação era perdida ao criar um único embedding para todos os metadados.
+
+No terceiro experimento que realizei, utilizei os mesmos metadados, mas decidi criar os embeddings a partir de cada sentença, e não usando todos os metadados ao mesmo tempo. Essa abordagem resultou em buscas em torno de 50 vezes mais lentas, mas bem mais relevantes.
+
+Considere novamente o texto "ddos attack". A busca demorou 4s e o resultado foi:
+
+1. Title:  Method for mitigating against distributed denial of service attacks using multi-agent system.
+Author:  Pereira, João Paulo Aragão (Catálogo USP)
+2. Title:  A collaborative architecture against DDOS attacks for cloud computing systems.
+Author:  Almeida, Thiago Rodrigues Meira de (Catálogo USP)
+3. Title:  Mitigating DDoS attacks on IoT through machine learning and network functions virtualization
+Author:  Oliveira, Guilherme Werneck de (Catálogo USP)
+Comparado ao resultado anterior, eu consideraria que esses resultados foram tão relevantes quanto para essa busca genérica específica. Para saber mais, eu precisaria comparar os 15 primeiros resultados, por exemplo.
+
+Como segundo teste, busquei o texto "ddos attack and machine learning" e o resultado foi:
+
+1. Title:  Mitigating DDoS attacks on IoT through machine learning and network functions virtualization
+Author:  Oliveira, Guilherme Werneck de (Catálogo USP)
+2. Title:  Reconfigurable learning system for classification of data using parallel processing
+Author:  Moreira, Eduardo Marmo (Catálogo USP)
+3. Title:  A collaborative architecture against DDOS attacks for cloud computing systems.
+Author:  Almeida, Thiago Rodrigues Meira de (Catálogo USP)
+Ou seja, pode-se considerar que houve uma melhora considerável de relevância para essa busca específica.
+
+Preliminarmente, notou-se um trade-off entre a qualidade da busca e o tempo levado para buscar e criar o sistema. O sistema que tomou mais para buscar e para criar o sistema resultou em uma qualidade de busca maior. A ideia é que esse sistema seja melhorado em duas frentes, embeddings e busca vetorial. Espera-se que os embeddings resultem em uma maior relevância do resultado de busca e que a busca vetorial resulte em uma maior eficiência (considerando a velocidade do sistema). Afinal, espera-se que um sistema de busca eficiente na web seja capaz de retornar buscas relevantes de forma rápida.
+
+
+
+\section{Medindo a qualidade do sistema}
+% (NOTE: 1.2 em diante)
+% Devem ser propostos experimentos, portanto, para formalizar a avaliação da qualidade da recuperação.
+% Com esses experimentos, busca-se criar um conjunto de consultas e relacionar essas consultas a uma coleção de documentos que devem ser retornados.
+
+\chapter*[Conclusão]{Conclusão}
+\addcontentsline{toc}{chapter}{Conclusão}
+
+
+% ----------------------------------------------------------
+% ELEMENTOS PÓS-TEXTUAIS
+% ----------------------------------------------------------
+\postextual
+% ----------------------------------------------------------
+
+\bibliography{abntex2-modelo-references}
+
+% ----------------------------------------------------------
+% Glossário
+% ----------------------------------------------------------
+%
+% Consulte o manual da classe abntex2 para orientações sobre o glossário.
+%
+%\glossary
+
+% ----------------------------------------------------------
+% Apêndices
+% ----------------------------------------------------------
+% % ---
+% % Inicia os apêndices
+% % ---
+% \begin{apendicesenv}
+% % Imprime uma página indicando o início dos apêndices
+% \partapendices
+% % ----------------------------------------------------------
+% \chapter{Quisque libero justo}
+% % ----------------------------------------------------------
+% \lipsum[50]
+% % ----------------------------------------------------------
+% \chapter{Nullam elementum urna vel imperdiet sodales elit ipsum pharetra ligula
+% ac pretium ante justo a nulla curabitur tristique arcu eu metus}
+% % ----------------------------------------------------------
+% \lipsum[55-57]
+% \end{apendicesenv}
+% % ---
+
+% ----------------------------------------------------------
+% Anexos
+% ----------------------------------------------------------
+% % ---
+% % Inicia os anexos
+% % ---
+% \begin{anexosenv}
+% % Imprime uma página indicando o início dos anexos
+% \partanexos
+% % ---
+% \chapter{Morbi ultrices rutrum lorem.}
+% % ---
+% \lipsum[30]
+% % ---
+% \chapter{Cras non urna sed feugiat cum sociis natoque penatibus et magnis dis
+% parturient montes nascetur ridiculus mus}
+% % ---
+% \lipsum[31]
+% % ---
+% \chapter{Fusce facilisis lacinia dui}
+% % ---
+% \lipsum[32]
+% \end{anexosenv}
+
+%---------------------------------------------------------------------
+% INDICE REMISSIVO
+%---------------------------------------------------------------------
+%\phantompart
+\printindex
+%---------------------------------------------------------------------
+
+\end{document}
