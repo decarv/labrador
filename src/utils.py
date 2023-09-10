@@ -15,8 +15,10 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 """
+import collections
 import datetime
 import os
+import pickle
 import re
 import time
 import logging
@@ -27,12 +29,13 @@ import requests
 import functools
 import numpy as np
 import pandas as pd
+import torch
+from psycopg2.extras import NamedTupleCursor, RealDictCursor, RealDictRow
 
 import config
 from models.metadata import Metadata
 from config import DATA_DIR, POSTGRESQL_DB_NAME, POSTGRESQL_DB_USER, POSTGRESQL_DB_PASSWORD, \
     POSTGRESQL_DB_HOST, POSTGRESQL_DB_PORT
-import pickle
 
 
 def log(func):
@@ -126,36 +129,73 @@ def post_request(
     return None
 
 
-def load_metadata_from_db() -> list[Metadata]:
-    conn = psycopg2.connect(
+def metadata_read() -> list[RealDictRow]:
+    return db_read("metadata")
+
+
+def tokenized_metadata_read() -> list[RealDictRow]:
+    return db_read("tokenized_metadata")
+
+
+def db_read(table_name: str) -> list[RealDictRow]:
+    with psycopg2.connect(
         dbname=POSTGRESQL_DB_NAME,
         user=POSTGRESQL_DB_USER,
         password=POSTGRESQL_DB_PASSWORD,
         host=POSTGRESQL_DB_HOST,
         port=POSTGRESQL_DB_PORT
-    )
-    res: list[Metadata] = []
-    cursor = conn.cursor()
-    cursor.execute("select * from metadata;")
-    instances = cursor.fetchall()
-    if instances is not None:
-        for inst in instances:
-            m = Metadata().parse_db_instance(inst)
-            res.append(m)
-    cursor.close()
-    conn.close()
-    return res
+    ) as conn:
+        with conn.cursor(cursor_factory=RealDictCursor) as cursor:
+            cursor.execute(f"SELECT * FROM {table_name};")
+            instances = cursor.fetchall()
+    return instances
 
 
-def embeddings_path(save_dir, model_name, units_type, language):
-    filename = f"{model_name}_{units_type}_{language}_embeddings.npy"
+@log
+def tokenized_metadata_insert(
+        metadata_url: str, 
+        title_tokens_pt: list[str], 
+        abstract_tokens_pt: list[str], 
+        keywords_tokens_pt: list[str], 
+        title_tokens_en: list[str], 
+        abstract_tokens_en: list[str], 
+        keywords_tokens_en: list[str]
+) -> None:
+    with psycopg2.connect(
+        dbname=POSTGRESQL_DB_NAME,
+        user=POSTGRESQL_DB_USER,
+        password=POSTGRESQL_DB_PASSWORD,
+        host=POSTGRESQL_DB_HOST,
+        port=POSTGRESQL_DB_PORT
+    ) as conn:
+        with conn.cursor(cursor_factory=RealDictCursor) as cursor:
+            cursor.execute(
+                "INSERT INTO tokenized_metadata (metadata_url, title_tokens_pt, abstract_tokens_pt, keywords_tokens_pt, "
+                "title_tokens_en, abstract_tokens_en, keywords_tokens_en) "
+                "VALUES (%s, %s, %s, %s, %s, %s, %s);",
+                (metadata_url, title_tokens_pt, abstract_tokens_pt, keywords_tokens_pt, 
+                 title_tokens_en, abstract_tokens_en, keywords_tokens_en)
+            )
+            conn.commit()
+
+
+def embeddings_path(model_name: str, units_type: str, language: str, save_dir: str = config.EMBEDDINGS_DIR) -> str:
+    if not os.path.exists(save_dir):
+        os.makedirs(save_dir)
+
+    filename = f"{model_name}_{units_type}_{language}_embeddings.pt"
     path = os.path.join(save_dir, filename)
     return path
 
 
-def save_embeddings(embeddings, save_dir, model_name, units_type, language):
+def embeddings_save(
+        embeddings: torch.tensor, model_name: str, token_type: str, language: str, save_dir=config.EMBEDDINGS_DIR
+) -> None:
+    if not os.path.exists(save_dir):
+        os.makedirs(save_dir)
+
     model_name = model_name.replace("/", "-")
-    path = embeddings_path(save_dir, model_name, units_type, language)
+    path = embeddings_path(model_name, token_type, language, save_dir)
     np.save(
         path,
         embeddings,
@@ -163,20 +203,26 @@ def save_embeddings(embeddings, save_dir, model_name, units_type, language):
     )
 
 
-def load_embeddings(model_name: str, units_type: str, language: str, save_dir=config.EMBEDDINGS_DIR) -> np.ndarray:
+def embeddings_load(model_name: str, units_type: str, language: str, save_dir=config.EMBEDDINGS_DIR) -> np.ndarray:
     model_name = model_name.replace("/", "-")
-    path = embeddings_path(save_dir, model_name, units_type, language)
-    return np.load(path)
+    path = embeddings_path(model_name, units_type, language, save_dir)
+    return torch.load(path)
 
 
-def indices_path(units_type: str, language: str, save_dir=config.INDICES_DIR) -> str:
-    filename = f"{units_type}_{language}_indices.pkl"
+def indices_path(tokens_type: str, language: str, save_dir=config.INDICES_DIR) -> str:
+    if not os.path.exists(save_dir):
+        os.makedirs(save_dir)
+
+    filename = f"{tokens_type}_{language}_indices.pkl"
     path = os.path.join(save_dir, filename)
     return path
 
 
-def load_imap(units_type: str, language: str, save_dir=config.INDICES_DIR) -> np.ndarray:
-    path = indices_path(units_type, language, save_dir)
+def indices_load(token_type: str, language: str, save_dir: str = config.INDICES_DIR) -> np.ndarray:
+    if not os.path.exists(save_dir):
+        os.makedirs(save_dir)
+
+    path = indices_path(token_type, language, save_dir)
     ext = path.split(".")[-1]
     if ext == "pkl":
         return np.array(np.load(path, allow_pickle=True))
@@ -185,20 +231,13 @@ def load_imap(units_type: str, language: str, save_dir=config.INDICES_DIR) -> np
     raise Exception("Invalid file extension.")
 
 
-def save_indices(indices, save_dir, units_type, language):
-    path = indices_path(units_type, language, save_dir)
-
-    with open(path, "wb") as f:
-        pickle.dump(indices, f, pickle.HIGHEST_PROTOCOL)
-
-
-def experiment_results_path(experiment_name, save_dir=config.EXPERIMENTS_RESULTS_DIR):
+def indices_save(indices: list[int], token_type: str, language: str, save_dir: str = config.INDICES_DIR) -> None:
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)
-    dt = datetime.datetime.now().strftime("%Y%m%d%H%M")
-    filename = f"{dt}_{experiment_name}.json"
-    path = os.path.join(save_dir, filename)
-    return path
+
+    path = indices_path(token_type, language, save_dir)
+    with open(path, "wb") as f:
+        pickle.dump(indices, f)
 
 
 def load_metadata_from_csv() -> pd.DataFrame:
@@ -206,16 +245,7 @@ def load_metadata_from_csv() -> pd.DataFrame:
     return metadata
 
 
-def batch_generator(data, batch_size=64):
-    """
 
-    :param self:
-    :param data:
-    :param batch_size:
-    :return:
-    """
-    for i in range(0, len(data), batch_size):
-        yield data[i:i+batch_size]
 
 
 def split_by_delimiters(string, delimiters: Union[list[str], str]) -> list[str]:

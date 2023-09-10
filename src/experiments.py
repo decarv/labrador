@@ -29,13 +29,17 @@ from sentence_transformers import SentenceTransformer
 import pickle
 from sklearn.metrics.pairwise import cosine_similarity
 import logging
+
+from encoder import Encoder
 from processor import Processor
 from typing import Optional
 
 import utils
+from tokenizer import Tokenizer
 from utils import log
 import functools
-from searcher import KeywordSearcher, LocalSearcher, DenseSearcher
+from searcher import LocalSearcher  # , DenseSearcher
+import datetime
 
 QUERIES = [
     "ddos attack",
@@ -72,6 +76,16 @@ ANSWERS_IDS = [
 
 
 # Experiment functions
+
+def experiments_path(experiment_name: str, save_dir: str = config.EXPERIMENTS_RESULTS_DIR):
+    if not os.path.exists(save_dir):
+        os.makedirs(save_dir)
+
+    dt = datetime.datetime.now().strftime("%Y%m%d%H%M")
+    filename = f"{dt}_{experiment_name}.json"
+    path: str = os.path.join(save_dir, filename)
+    return path
+
 
 def run_experiment(name, description, pipeline, args, filename):
     times, outputs = pipeline(*args)
@@ -143,11 +157,27 @@ def local_searcher_pipeline(
 
 
 if __name__ == '__main__':
+
+    language = "pt"
+    data = utils.tokenized_metadata_read()
+    for model in config.MODELS:
+        tokenizer = Tokenizer(data, language=language)
+        encoder = Encoder(model_name=model)
+        for token_type in tokenizer.TOKEN_TYPES:
+            if os.path.exists(path := utils.embeddings_path(model, token_type, language)):
+                logging.info(f"Embeddings already created at {path}. Skipping...")
+                continue
+
+            tokens = tokenizer.tokenize(token_type)
+            embeddings, indices = encoder.encode(tokens)
+            utils.embeddings_save(embeddings, model, token_type, language)
+            utils.indices_save(indices, token_type, language)
+
     run_experiment(
         name="Local Searcher",
         description="This experiment evaluates the performance of the local searcher.",
         pipeline=local_searcher_pipeline,
         args=(),
-        filename=utils.experiment_results_path("local_searcher")
+        filename=experiments_path("local_searcher")
     )
 

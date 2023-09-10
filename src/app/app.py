@@ -13,7 +13,7 @@ from searcher import Searcher
 
 import config
 from searcher import LocalSearcher
-from utils import load_embeddings, load_imap, load_metadata_from_csv, log
+from utils import embeddings_load, indices_load, load_metadata_from_csv, log
 
 
 units_type = "sentences"
@@ -21,10 +21,10 @@ language = "pt"
 model_name = config.MODELS[1]
 
 data = load_metadata_from_csv()
-embeddings = load_embeddings(model_name=model_name, units_type=units_type, language=language,
+embeddings = embeddings_load(model_name=model_name, units_type=units_type, language=language,
                              save_dir=config.EMBEDDINGS_DIR)
 encoder_model = SentenceTransformer(model_name, device='cuda', cache_folder=config.MODEL_CACHE_DIR)
-imap = load_imap(units_type=units_type, language=language, save_dir=config.INDICES_DIR)
+imap = indices_load(token_type=units_type, language=language, save_dir=config.INDICES_DIR)
 
 searcher = LocalSearcher(
     collection_name="abstracts",

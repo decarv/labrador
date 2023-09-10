@@ -1,7 +1,7 @@
 """
-encoder
+tokenizer
 
-Copyright 2023 Henrique Araújo de Carvalho
+Copyright 2023 Henrique de Carvalho
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,46 +14,37 @@ distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
-
 """
 
-import torch
+from typing import Optional, List, Tuple
 from psycopg2.extras import RealDictRow
-from sentence_transformers import SentenceTransformer
-
-import config
-from tokenizer import Tokenizer
-from utils import log, embeddings_save, indices_save, tokenized_metadata_read
-from typing import Optional
 
 
-class Encoder:
+class Tokenizer:
+    """
+    Tokenization component for text.
+    Forms of tokenization:
+     a) paragraph tokenization;
+     b) sentence tokenization;
+     c) n-gram tokenization.
+
+    These can be with or without keywords.
+    """
 
     TOKEN_TYPES = ["paragraph", "sentence", "sentence_with_keywords", "8gram", "8gram_with_keywords"]
 
-    def __init__(self, model_name: str, language: str = "pt"):
+    def __init__(self, data: list[RealDictRow], language: str = "pt"):
+        self.data = data
         self.language = language
-        self.model_name = model_name.split("/")[-1]
-        self.model = SentenceTransformer(
-            model_name, device='cuda', cache_folder=config.MODEL_CACHE_DIR, convert_to_tensor=True
-        )
+        self.tokens: dict[str, list[list[str]]] = {k: [] for k in self.TOKEN_TYPES}
 
-    @log
-    def encode(self, tokens: list[list[str]]) -> tuple[torch.tensor, list[int]]:
-        flattened_tokens: list[str] = []
-        indices: list[int] = []
-        for i in range(len(tokens)):
-            flattened_tokens += tokens[i]
-            indices += [i] * len(tokens[i])
-        embeddings: torch.tensor = self._encode_tokens(flattened_tokens)
-        return embeddings, indices
+    def tokenize(self, token_type: str) -> list[list[str]]:
+        if len(self.tokens[token_type]) > 0:
+            return self.tokens[token_type]
 
-    def _encode_tokens(self, tokens: list[str]) -> torch.tensor:
-        embeddings: list[torch.tensor] = []
-        for batch in self.batch_generator(tokens):
-            embedding: torch.tensor = self.model.encode(batch, batch_size=len(batch))
-            embeddings.append(embedding)
-        return torch.cat(embeddings)
+        for instance in self.data:
+            self.tokens[token_type].append(self._tokenize_instance(instance, token_type))
+        return self.tokens[token_type]
 
     def _tokenize_instance(self, instance: RealDictRow, token_type: str) -> list[str]:
         match token_type:
@@ -120,8 +111,3 @@ class Encoder:
                 ngram += " " + " ".join(kw_tokens)
             ngram_tokens.append(ngram)
         return ngram_tokens
-
-    @staticmethod
-    def batch_generator(data, batch_size=64):
-        for i in range(0, len(data), batch_size):
-            yield data[i:i + batch_size]

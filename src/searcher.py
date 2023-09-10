@@ -16,37 +16,25 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 
-
-import sys
 import os
 import logging
-
-import numpy
 import numpy as np
-import pandas as pd
 import torch
-from typing import List
-import os
-import weaviate
-from qdrant_client import QdrantClient
-from qdrant_client.http.models.models import Filter
-from qdrant_client.models import VectorParams, Distance
 from sentence_transformers import SentenceTransformer
-from sklearn.metrics.pairwise import cosine_similarity
-
-from config import DATA_DIR
 from utils import log
 import utils
 import config
+from sentence_transformers.util import cos_sim
+from abc import ABC, abstractmethod
 
 
-class Searcher:
+class Searcher(ABC):
     def __init__(self, *args, **kwargs):
         self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
         if self.device == 'cpu':
             logging.warning("CUDA not available. Using CPU instead.")
 
-        self.model_name = kwargs.get("model_name")
+        self.model_name = kwargs.get('model_name')
         self.collection_name = kwargs.get('collection_name')
         self.language = kwargs.get('language')
         self.units_type = kwargs.get('units_type')
@@ -57,12 +45,15 @@ class Searcher:
         hits = self._rank(hits)
         return hits
 
-    def _retrieve(self, query: str, hits_cnt: int = 30) -> list[dict]:
+    @abstractmethod
+    def _retrieve(self, query: str, top_k: int = 30) -> list[dict]:
         raise NotImplementedError
 
+    @abstractmethod
     def _rank(self, hits):
         raise NotImplementedError
 
+    @abstractmethod
     def _filter(self, hits, _filters=None):
         raise NotImplementedError
 
@@ -70,21 +61,25 @@ class Searcher:
 class LocalSearcher(Searcher):
     def __init__(self, *args, **kwargs):
         super(LocalSearcher, self).__init__(*args, **kwargs)
-        self.encoder_model = SentenceTransformer(self.model_name, device='cuda', cache_folder=config.MODEL_CACHE_DIR)
-        self.embeddings = utils.load_embeddings(self.model_name, self.units_type, self.language)
+        self.encoder_model = SentenceTransformer(
+            self.model_name, device='cuda', cache_folder=config.MODEL_CACHE_DIR, convert_to_tensor=True
+        )
+        self.embeddings: torch.tensor = torch.from_numpy(
+            utils.embeddings_load(self.model_name, self.units_type, self.language)
+        )
         self.data = utils.load_metadata_from_csv()  # TODO: change to load_from_db
-        self.imap = utils.load_imap(self.units_type, self.language)
+        self.imap = utils.indices_load(self.units_type, self.language)
 
     @log
-    def _retrieve(self, query: str, hits_cnt: int = 30) -> list[dict]:
-        vector: numpy.ndarray = self.process_query(query)
-        [scores] = cosine_similarity(vector.reshape(1, -1), self.embeddings)
-        hits = np.argsort(scores)[::-1][:hits_cnt]
+    def _retrieve(self, query: str, top_k: int = 30) -> list[dict]:
+        tensor: torch.tensor = self.process_query(query)
+        [scores] = cos_sim(tensor, torch.from_numpy(self.embeddings))
+        hits = np.argsort(scores)[::-1][:top_k]
         return [self.data.iloc[self.imap[i]].to_dict() for i in hits]
 
     @log
     def process_query(self, query):
-        vector: numpy.ndarray = self.encoder_model.encode(query, show_progress_bar=False)
+        vector: np.ndarray = self.encoder_model.encode(query, show_progress_bar=False)
         return vector
 
     @log

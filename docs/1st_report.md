@@ -1,3 +1,4 @@
+
 # labrador - A Semantic Information Retriever
 
 **_Under active development._**
@@ -11,14 +12,14 @@ A pesquisa inicial propunha a investigação de _embeddings_ e busca vetorial e 
 #### Por que um sistema de busca semântico?
 Minha suposição inicial é de que um sistema de busca semântico é melhor para buscar textos do que sistemas tradicionais de busca, principalmente quando envolve recuperação de conhecimento. Quando recuperar conhecimento envolve a combinação de palavras e a busca dessas palavras em textos, um sistema deve considerar o sentido semântico de cada palavra individual, o contexto da busca, o sentido semântico de todas as palavras juntas. Em um sistema comum de recuperação de conhecimento, existem heurísticas de busca por frequência de palavras em um texto para recuperá-lo, o que não é suficiente para conseguir um resultado de busca relevante.
 
-#### O que são _embeddings_ e por que utilizá-los? 
+#### O que são _embeddings_ e por que utilizá-los?
 São formas de representar texto com números, através da codificação desse texto. Diferentemente de outros métodos de codificação de texto, embeddings conseguem representar relacionamentos entre palavras e sua codificação ajuda em sua utilização em algoritmos de aprendizagem de máquina. Com embeddings, a similaridade semântica entre dois textos pode ser computada de forma trivial por meio do produto interno de suas representações.
 
 Embeddings são gerados a partir de um modelo de aprendizagem de máquina. Esses modelos são treinados com bilhões ou mais de um trilhão de palavras obtidas da internet. Eles resultam em algo semelhante a uma tabela, capazes de receber texto como input e retornar uma representação vetorial desse texto. Esses modelos são treinados para serem capazes de generalizar para uma ampla gama de textos, de várias áreas, mas é possível ajustar tais modelos para gerar melhores representações para os dados com que se está trabalhando. Ajuste fino de um modelo (fine-tuning) é o processo de ajustar um modelo para trabalhar com dados de um domínio específico. A forma de avaliar um modelo que gera embeddings de texto é por MSMARCO Passage Ranking ou STS (Semantic Textual Similarity) Benchmark. A forma de avaliar um modelo ajustado tem a mesma ideia: precisa-se de uma tarefa para resolver e que essa tarefa seja avaliada com base em um resultado conhecido.
 
-Referências: 
+Referências:
 
-- https://www.tensorflow.org/text/guide/word_embeddings 
+- https://www.tensorflow.org/text/guide/word_embeddings
 - https://sbert.net/
 - https://huggingface.co/tasks/sentence-similarity
 - https://dev.to/meetkern/how-to-fine-tune-your-embeddings-for-better-similarity-search-445e
@@ -51,7 +52,7 @@ No primeiro experimento que realizei, tentei usar toda a informação de alguns 
 
 #### Experimento 2
 
-No segundo experimento que realizei, usei apenas as informações de metadados contidas no site de teses, sem utilizar a tese em si. Os metadados são título, resumo e palavras-chave. Juntei esses 3 em um texto só para gerar cada embedding. O tempo de criação de tudo é em torno de alguns minutos. Com isso, fui capaz de criar um sistema de busca que abarcava todas as teses do site de tese da USP. O sistema foi capaz de obter resultados em menos de 1 segundo. Entretanto, notou-se que a busca foi insatisfatória em algumas instâncias. 
+No segundo experimento que realizei, usei apenas as informações de metadados contidas no site de teses, sem utilizar a tese em si. Os metadados são título, resumo e palavras-chave. Juntei esses 3 em um texto só para gerar cada embedding. O tempo de criação de tudo é em torno de alguns minutos. Com isso, fui capaz de criar um sistema de busca que abarcava todas as teses do site de tese da USP. O sistema foi capaz de obter resultados em menos de 1 segundo. Entretanto, notou-se que a busca foi insatisfatória em algumas instâncias.
 
 Para demonstrar isso, estabeleci o texto de busca "ddos attack". A busca encontrou o vetor mais similar em 0.19s e o resultado retornado foi:
 
