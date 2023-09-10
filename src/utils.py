@@ -15,14 +15,13 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 """
-import collections
-import datetime
 import os
 import pickle
 import re
 import time
 import logging
-from typing import Union, Optional
+from logging import handlers
+from typing import Union, Optional, Generator, Any
 
 import psycopg2
 import requests
@@ -30,38 +29,55 @@ import functools
 import numpy as np
 import pandas as pd
 import torch
-from psycopg2.extras import NamedTupleCursor, RealDictCursor, RealDictRow
+from psycopg2.extras import RealDictCursor, RealDictRow
 
 import config
-from models.metadata import Metadata
 from config import DATA_DIR, POSTGRESQL_DB_NAME, POSTGRESQL_DB_USER, POSTGRESQL_DB_PASSWORD, \
     POSTGRESQL_DB_HOST, POSTGRESQL_DB_PORT
 
 
-def log(func):
-    """
-    Decorator that creates an automatic logging for functions.
+def configure_logger(name):
+    logger = logging.getLogger(name)
+    logger.setLevel(config.LOG_LEVEL)
 
-    Usage:
-        @log
-        def func(a, b):
-            ...
-    """
-    logger = logging.getLogger(f"{__name__}.{func.__name__}")
+    if not logger.hasHandlers():
+        console_handler = logging.StreamHandler()
+        console_handler.setLevel(config.LOG_LEVEL)
+        console_formatter = logging.Formatter(config.LOG_FORMAT)
+        console_handler.setFormatter(console_formatter)
+        logger.addHandler(console_handler)
 
-    # noinspection PyMissingOrEmptyDocstring
-    @functools.wraps(func)
-    def wrapper(*args, **kwargs):
-        try:
-            logger.info(f"Running {func.__name__}")
-            s = time.time()
-            ret = func(*args, **kwargs)
-            logger.info(f"{func.__name__} took {time.time() - s} seconds")
-            return ret
-        except Exception as e:
-            logger.error(f"Exception raised in function {func.__name__}. Exception: {e}")
-            raise e
-    return wrapper
+        # Set up file handler
+        log_formatter = logging.Formatter(config.LOG_FORMAT)
+        logfile_handler = handlers.RotatingFileHandler(
+                os.path.join(config.LOG_DIR, config.LOG_FILENAME),
+                maxBytes=5 * 1024 * 1024,
+                backupCount=2
+        )
+        logfile_handler.setFormatter(log_formatter)
+        logger.addHandler(logfile_handler)
+
+    return logger
+
+
+def log(logger):
+    """
+    Decorator for automatic logging.
+    """
+    def decorator(func):
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            try:
+                logger.info(f"Running {func.__name__}")
+                s = time.time()
+                ret = func(*args, **kwargs)
+                logger.info(f"{func.__name__} took {time.time() - s} seconds")
+                return ret
+            except Exception as e:
+                logger.error(f"Exception raised in function {func.__name__}. Exception: {e}")
+                raise e
+        return wrapper
+    return decorator
 
 
 def get_request(
@@ -137,6 +153,23 @@ def tokenized_metadata_read() -> list[RealDictRow]:
     return db_read("tokenized_metadata")
 
 
+def tokenized_metadata_generator() -> Generator[RealDictRow, Any, None]:
+    with psycopg2.connect(
+        dbname=POSTGRESQL_DB_NAME,
+        user=POSTGRESQL_DB_USER,
+        password=POSTGRESQL_DB_PASSWORD,
+        host=POSTGRESQL_DB_HOST,
+        port=POSTGRESQL_DB_PORT
+    ) as conn:
+        with conn.cursor(cursor_factory=RealDictCursor) as cursor:
+            cursor.execute(f"SELECT * FROM tokenized_metadata;")
+            while True:
+                instances = cursor.fetchmany(1000)
+                if not instances:
+                    break
+                yield instances
+
+
 def db_read(table_name: str) -> list[RealDictRow]:
     with psycopg2.connect(
         dbname=POSTGRESQL_DB_NAME,
@@ -151,7 +184,6 @@ def db_read(table_name: str) -> list[RealDictRow]:
     return instances
 
 
-@log
 def tokenized_metadata_insert(
         metadata_url: str, 
         title_tokens_pt: list[str], 
@@ -170,10 +202,11 @@ def tokenized_metadata_insert(
     ) as conn:
         with conn.cursor(cursor_factory=RealDictCursor) as cursor:
             cursor.execute(
-                "INSERT INTO tokenized_metadata (metadata_url, title_tokens_pt, abstract_tokens_pt, keywords_tokens_pt, "
-                "title_tokens_en, abstract_tokens_en, keywords_tokens_en) "
-                "VALUES (%s, %s, %s, %s, %s, %s, %s);",
-                (metadata_url, title_tokens_pt, abstract_tokens_pt, keywords_tokens_pt, 
+                """INSERT INTO tokenized_metadata (metadata_url, title_tokens_pt, abstract_tokens_pt, 
+                keywords_tokens_pt, title_tokens_en, abstract_tokens_en, keywords_tokens_en) 
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (metadata_url) DO NOTHING;""",
+                (metadata_url, title_tokens_pt, abstract_tokens_pt, keywords_tokens_pt,
                  title_tokens_en, abstract_tokens_en, keywords_tokens_en)
             )
             conn.commit()
@@ -203,7 +236,7 @@ def embeddings_save(
     )
 
 
-def embeddings_load(model_name: str, units_type: str, language: str, save_dir=config.EMBEDDINGS_DIR) -> np.ndarray:
+def embeddings_load(model_name: str, units_type: str, language: str, save_dir=config.EMBEDDINGS_DIR) -> torch.tensor:
     model_name = model_name.replace("/", "-")
     path = embeddings_path(model_name, units_type, language, save_dir)
     return torch.load(path)
@@ -218,17 +251,12 @@ def indices_path(tokens_type: str, language: str, save_dir=config.INDICES_DIR) -
     return path
 
 
-def indices_load(token_type: str, language: str, save_dir: str = config.INDICES_DIR) -> np.ndarray:
+def indices_load(token_type: str, language: str, save_dir: str = config.INDICES_DIR) -> list[int]:
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)
 
-    path = indices_path(token_type, language, save_dir)
-    ext = path.split(".")[-1]
-    if ext == "pkl":
-        return np.array(np.load(path, allow_pickle=True))
-    elif ext == "npy":
-        return np.load(path, allow_pickle=False)
-    raise Exception("Invalid file extension.")
+    with open(indices_path(token_type, language, save_dir), "rb") as f:
+        return pickle.load(f)
 
 
 def indices_save(indices: list[int], token_type: str, language: str, save_dir: str = config.INDICES_DIR) -> None:
@@ -240,12 +268,35 @@ def indices_save(indices: list[int], token_type: str, language: str, save_dir: s
         pickle.dump(indices, f)
 
 
+def tokens_path(tokens_type: str, language: str, save_dir=config.TOKENS_DIR) -> str:
+    if not os.path.exists(save_dir):
+        os.makedirs(save_dir)
+
+    filename = f"{tokens_type}_{language}_tokens.pkl"
+    path = os.path.join(save_dir, filename)
+    return path
+
+
+def tokens_save(tokens: list[list[str]], token_type: str, language: str, save_dir: str = config.TOKENS_DIR) -> None:
+    if not os.path.exists(save_dir):
+        os.makedirs(save_dir)
+
+    path = tokens_path(token_type, language, save_dir)
+    with open(path, "wb") as f:
+        pickle.dump(tokens, f)
+
+
+def tokens_load(token_type: str, language: str, save_dir: str = config.TOKENS_DIR) -> list[list[str]]:
+    if not os.path.exists(save_dir):
+        os.makedirs(save_dir)
+
+    with open(tokens_path(token_type, language, save_dir), "rb") as f:
+        return pickle.load(f)
+
+
 def load_metadata_from_csv() -> pd.DataFrame:
     metadata = pd.read_csv(os.path.join(DATA_DIR, "metadata.csv"), keep_default_na=False)
     return metadata
-
-
-
 
 
 def split_by_delimiters(string, delimiters: Union[list[str], str]) -> list[str]:

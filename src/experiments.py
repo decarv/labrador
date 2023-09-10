@@ -15,31 +15,25 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 """
-
+import gc
 import json
-import numpy as np
-import pandas as pd
 import os
-import sys
 import time
+from typing import Optional
+
+from psycopg2.extras import RealDictRow
+import torch
+
 import config
-from typing import Union
-import sqlite3
-from sentence_transformers import SentenceTransformer
-import pickle
-from sklearn.metrics.pairwise import cosine_similarity
-import logging
 
 from encoder import Encoder
-from processor import Processor
-from typing import Optional
 
 import utils
 from tokenizer import Tokenizer
-from utils import log
-import functools
 from searcher import LocalSearcher  # , DenseSearcher
 import datetime
+
+logger = utils.configure_logger(__name__)
 
 QUERIES = [
     "ddos attack",
@@ -133,13 +127,14 @@ def evaluate_speed(times):
 #     return times, results
 #
 
+@utils.log(logger)
 def local_searcher_pipeline(
         collection_name="abstracts", units_type="sentences", language="pt", device="cuda"
 ) -> tuple[list[float], list[list[dict]]]:
     # processor = Processor()
 
-    model = config.MODELS[0]
     local_searcher = LocalSearcher(
+        model_name=config.MODELS[0],
         collection_name=collection_name,
         device=device,
         language=language,
@@ -157,21 +152,27 @@ def local_searcher_pipeline(
 
 
 if __name__ == '__main__':
-
     language = "pt"
-    data = utils.tokenized_metadata_read()
-    for model in config.MODELS:
-        tokenizer = Tokenizer(data, language=language)
-        encoder = Encoder(model_name=model)
-        for token_type in tokenizer.TOKEN_TYPES:
-            if os.path.exists(path := utils.embeddings_path(model, token_type, language)):
-                logging.info(f"Embeddings already created at {path}. Skipping...")
-                continue
+    for token_type in Tokenizer.token_types():
+        tokenizer = Tokenizer(token_type, language)
+        tokens: list[list[str]] = tokenizer.tokenize(data=utils.tokenized_metadata_generator())
+        for model in config.MODELS:
+            if not os.path.exists(path := utils.embeddings_path(model, token_type, language)):
+                del tokenizer
+                gc.collect()
 
-            tokens = tokenizer.tokenize(token_type)
-            embeddings, indices = encoder.encode(tokens)
-            utils.embeddings_save(embeddings, model, token_type, language)
-            utils.indices_save(indices, token_type, language)
+                logger.info(f"Encoding {token_type} with {model}.")
+                encoder: Encoder = Encoder(model_name=model)
+                embeddings, indices = encoder.encode(tokens)
+                utils.embeddings_save(embeddings, model, token_type, language)
+                utils.indices_save(indices, token_type, language)
+
+                del encoder, embeddings, indices
+                gc.collect()
+                torch.cuda.empty_cache()
+            else:
+                logger.info(f"Embeddings already exist: {path}. Skipping...")
+                continue
 
     run_experiment(
         name="Local Searcher",
@@ -180,4 +181,3 @@ if __name__ == '__main__':
         args=(),
         filename=experiments_path("local_searcher")
     )
-

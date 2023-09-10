@@ -20,12 +20,15 @@ import os
 import logging
 import numpy as np
 import torch
+from psycopg2.extras import RealDictRow
 from sentence_transformers import SentenceTransformer
 from utils import log
 import utils
 import config
 from sentence_transformers.util import cos_sim
 from abc import ABC, abstractmethod
+
+logger = utils.configure_logger(__name__)
 
 
 class Searcher(ABC):
@@ -64,29 +67,27 @@ class LocalSearcher(Searcher):
         self.encoder_model = SentenceTransformer(
             self.model_name, device='cuda', cache_folder=config.MODEL_CACHE_DIR, convert_to_tensor=True
         )
-        self.embeddings: torch.tensor = torch.from_numpy(
-            utils.embeddings_load(self.model_name, self.units_type, self.language)
-        )
-        self.data = utils.load_metadata_from_csv()  # TODO: change to load_from_db
-        self.imap = utils.indices_load(self.units_type, self.language)
+        self.embeddings: torch.tensor = utils.embeddings_load(self.model_name, self.units_type, self.language)
+        self.data: list[RealDictRow] = utils.metadata_read()
+        self.imap: list[int] = utils.indices_load(self.units_type, self.language)
 
-    @log
+    @log(logger)
     def _retrieve(self, query: str, top_k: int = 30) -> list[dict]:
         tensor: torch.tensor = self.process_query(query)
-        [scores] = cos_sim(tensor, torch.from_numpy(self.embeddings))
+        [scores] = cos_sim(tensor, self.embeddings)
         hits = np.argsort(scores)[::-1][:top_k]
-        return [self.data.iloc[self.imap[i]].to_dict() for i in hits]
+        return [self.data[self.imap[i]] for i in hits]
 
-    @log
+    @log(logger)
     def process_query(self, query):
         vector: np.ndarray = self.encoder_model.encode(query, show_progress_bar=False)
         return vector
 
-    @log
+    @log(logger)
     def _rank(self, hits):
         return hits
 
-    @log
+    @log(logger)
     def _filter(self, hits, _filters=None):
         return hits
 

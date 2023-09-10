@@ -17,18 +17,26 @@ limitations under the License.
 """
 
 import re
-
+from typing import Optional
+import asyncpg
+import asyncio
 from psycopg2.extras import RealDictRow
 
+from config import POSTGRESQL_DB_NAME, POSTGRESQL_DB_USER, POSTGRESQL_DB_PASSWORD, POSTGRESQL_DB_HOST, \
+    POSTGRESQL_DB_PORT
 from models.metadata import Metadata
-from utils import log, metadata_read, tokenized_metadata_insert
+from utils import log, metadata_read, tokenized_metadata_insert, configure_logger
+
+logger = configure_logger(__name__)
 
 
 class Processor:
     """
     Processing component for text.
     Implementation will encompass all text processing steps, such as:
-     a) standardization;
+     a) standardization & cleaning;
+        TODO:
+            - limpar 'Not available' e 'Não disponível'.
      b) tokenization;
      c) spell check for queries.
     """
@@ -36,9 +44,9 @@ class Processor:
     @staticmethod
     def _split_by_delimiters(string, delimiters: list[str] | str) -> list[str]:
         if isinstance(delimiters, list):
-            pattern = r"|".join(delimiters)
+            pattern = r"|".join([re.escape(delimiter) for delimiter in delimiters])
         else:
-            pattern = r"{}".format(delimiters)
+            pattern = re.escape(delimiters)
         return re.split(pattern, string)
 
     @staticmethod
@@ -60,32 +68,73 @@ class Processor:
         strings = [s.strip() for s in strings]  # Remove leading and trailing whitespaces
         strings = [s for s in strings if s != '']  # Remove empty strings
         return strings
+    
+    async def process_entry(self, entry):
+        metadata_url: str = entry['url']
+        title_tokens_pt: Optional[list[str]] = None
+        abstract_tokens_pt: Optional[list[str]] = None
+        keywords_tokens_pt: Optional[list[str]] = None
+        title_tokens_en: Optional[list[str]] = None
+        abstract_tokens_en: Optional[list[str]] = None
+        keywords_tokens_en: Optional[list[str]] = None
 
-    @log
-    def process_metadata(self):
-        metadata_objects: list[RealDictRow] = metadata_read()
-        for entry in metadata_objects:
-            url: str = entry['url']
-            title_pt_tokens: list[str] = self._clean_string_list(self._split_by_delimiters(entry['title_pt'], ['.']))
-            abstract_pt_tokens: list[str] = self._clean_string_list(
-                self._split_by_delimiters(entry['abstract_pt'], ['.']))
-            keywords_pt_tokens: list[str] = self._split_keywords(entry['keywords_pt'])
-            title_en_tokens: list[str] = self._clean_string_list(self._split_by_delimiters(entry['title_en'], ['.']))
-            abstract_en_tokens: list[str] = self._clean_string_list(
-                self._split_by_delimiters(entry['abstract_en'], ['.']))
-            keywords_en_tokens: list[str] = self._split_keywords(entry['keywords_en'])
+        if entry['title_pt'] is not None:
+            title_tokens_pt = self._clean_string_list(
 
-            tokenized_metadata_insert(
-                url=url,
-                title_pt_tokens=title_pt_tokens,
-                abstract_pt_tokens=abstract_pt_tokens,
-                keywords_pt_tokens=keywords_pt_tokens,
-                title_en_tokens=title_en_tokens,
-                abstract_en_tokens=abstract_en_tokens,
-                keywords_en_tokens=keywords_en_tokens
+                entry['title_pt'].split('.')
             )
+        if entry['abstract_pt'] is not None:
+            abstract_tokens_pt = self._clean_string_list(
+                entry['abstract_pt'].split('.')
+            )
+        if entry['keywords_pt'] is not None:
+            keywords_tokens_pt = self._split_keywords(entry['keywords_pt'])
+        if entry['title_en'] is not None:
+            title_tokens_en = self._clean_string_list(
+                entry['title_en'].split('.')
+            )
+        if entry['abstract_en'] is not None:
+            abstract_tokens_en = self._clean_string_list(
+                entry['abstract_en'].split('.')
+            )
+        if entry['keywords_en'] is not None:
+            keywords_tokens_en = self._split_keywords(entry['keywords_en'])
+
+        return (
+            metadata_url,
+            title_tokens_pt,
+            abstract_tokens_pt,
+            keywords_tokens_pt,
+            title_tokens_en,
+            abstract_tokens_en,
+            keywords_tokens_en
+        )
+
+    async def process_metadata(self):
+        conn = await asyncpg.connect(
+            database=POSTGRESQL_DB_NAME,
+            user=POSTGRESQL_DB_USER,
+            password=POSTGRESQL_DB_PASSWORD,
+            host=POSTGRESQL_DB_HOST,
+            port=POSTGRESQL_DB_PORT
+        )
+
+        metadata_objects = await conn.fetch(f"SELECT * FROM metadata;")
+
+        insert_query = """
+            INSERT INTO tokenized_metadata (metadata_url, title_tokens_pt, abstract_tokens_pt, 
+            keywords_tokens_pt, title_tokens_en, abstract_tokens_en, keywords_tokens_en) 
+            VALUES ($1, $2, $3, $4, $5, $6, $7)
+            ON CONFLICT (metadata_url) DO NOTHING;
+            """
+
+        # Using asyncio.gather to process entries concurrently
+        records_to_insert = await asyncio.gather(*(self.process_entry(entry) for entry in metadata_objects))
+
+        async with conn.transaction():
+            await conn.executemany(insert_query, records_to_insert)
 
 
 if __name__ == '__main__':
     processor = Processor()
-    processor.process_metadata()
+    asyncio.run(processor.process_metadata())
