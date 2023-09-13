@@ -17,6 +17,7 @@ limitations under the License.
 """
 
 import re
+import pandas as pd
 from typing import Optional
 import asyncpg
 import asyncio
@@ -35,8 +36,6 @@ class Processor:
     Processing component for text.
     Implementation will encompass all text processing steps, such as:
      a) standardization & cleaning;
-        TODO:
-            - limpar 'Not available' e 'Não disponível'.
      b) tokenization;
      c) spell check for queries.
     """
@@ -118,21 +117,62 @@ class Processor:
             host=POSTGRESQL_DB_HOST,
             port=POSTGRESQL_DB_PORT
         )
-
-        metadata_objects = await conn.fetch(f"SELECT * FROM metadata;")
-
+        metadata_objects = await conn.fetch(f"SELECT * FROM clean_metadata;")
         insert_query = """
-            INSERT INTO tokenized_metadata (metadata_url, title_tokens_pt, abstract_tokens_pt, 
+            INSERT INTO clean_tokenized_metadata (metadata_url, title_tokens_pt, abstract_tokens_pt, 
             keywords_tokens_pt, title_tokens_en, abstract_tokens_en, keywords_tokens_en) 
             VALUES ($1, $2, $3, $4, $5, $6, $7)
             ON CONFLICT (metadata_url) DO NOTHING;
             """
-
-        # Using asyncio.gather to process entries concurrently
         records_to_insert = await asyncio.gather(*(self.process_entry(entry) for entry in metadata_objects))
-
         async with conn.transaction():
             await conn.executemany(insert_query, records_to_insert)
+
+        def _clean_instance():
+            instances = metadata_read()
+            df = pd.DataFrame(instances)
+
+            # Set columns
+            df.columns = [
+                'url', 'doi', 'type', 'author', 'institute', 'knowledge_area',
+                'committee', 'title_pt', 'title_en', 'keywords_pt', 'keywords_en',
+                'abstract_pt', 'abstract_en', 'publish_date'
+            ]
+
+            # Filter out rows with NaN title_pt or abstract_pt
+            df = df[df['title_pt'].notna() & df['abstract_pt'].notnull()]
+
+            # Replace unwanted strings in columns
+            unwanted_strings = {
+                'não disponível', 'Não disponível', 'Não consta', 'Não disponível.',
+                'Não consta resumo na publicação.', '-', 'Não consta.', 'Sem resumo',
+                'Não possui resumo.', 'Not available', 'Resumo',
+                'Não disponível pelo autor.', 'Não informado pelo autor.', '',
+                'Sem Resumo', 'Não Consta Resumo na Publicação',
+                'Não fornecido pelo autor.', 'Não consta resumo na publicação',
+                'Sem resumo.', 'não consta.', 'not available', 'não há resumo',
+                'Sem resumo em português', 'Sem resumo em português.', 'não possui'
+            }
+
+            for col in ['abstract_pt', 'keywords_pt', 'title_pt']:
+                df[col] = df[col].apply(lambda x: "" if x.strip() in unwanted_strings else x)
+
+            # Remove rows where abstract_pt or title_pt is an empty string
+            df = df[df['abstract_pt'].str.strip() != ""]
+            df.reset_index(drop=True, inplace=True)
+            df = df[df['title_pt'].str.strip() != ""]
+            df.reset_index(drop=True, inplace=True)
+
+            # Drop duplicates based on title and abstract
+            df.drop_duplicates(subset=['abstract_pt'], keep='first', inplace=True)
+            df.reset_index(drop=True, inplace=True)
+            df.drop_duplicates(subset=['title_pt'], keep='first', inplace=True)
+            df.reset_index(drop=True, inplace=True)
+
+            # Clean unwanted substring from author
+            df['author'] = df['author'].str.replace("(Catálogo USP)", "")
+
+            return df
 
 
 if __name__ == '__main__':

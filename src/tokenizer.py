@@ -17,16 +17,18 @@ limitations under the License.
 """
 import gc
 import os
-from typing import Optional, Generator, Callable
+import pickle
+from typing import Optional, Generator, Callable, Iterator
 from psycopg2.extras import RealDictRow
 
 import utils
+import config
 
 logger = utils.configure_logger(__name__)
 
 
 class Tokenizer:
-    def __init__(self, token_type: str, language: str = "pt"):
+    def __init__(self, token_type: str, language: str = "pt", batch_size: int = 1000):
         _token_generator_name: str = f"_generate_{token_type}_tokens"
         if not hasattr(self, _token_generator_name):
             raise ValueError(f"Invalid token type: {token_type}. Valid token types are: {Tokenizer.token_types()}")
@@ -35,27 +37,41 @@ class Tokenizer:
         self.token_type = token_type
         self.language = language
         self.path = utils.tokens_path(self.token_type, self.language)
+        self.ix_path = utils.indices_path(self.token_type, self.language)
         self.tokens: list[list[str]] = []
+        self.batch_size: int = batch_size
+        del self.batch_size  # TODO: unused
 
-    def tokenize(self, data: Generator) -> list[list[str]]:
-        if len(self.tokens) > 0:
-            return self.tokens
+    def tokenize(self, data_chunks: Iterator[RealDictRow], keep_in_memory: bool = False) -> None:
+        if config.ALLOW_CACHING and os.path.exists(self.path):
+            logger.info(f"Tokens already cached: {self.path}.")
+            return None
 
-        if os.path.exists(self.path):
-            logger.info(f"Loaded tokens from {self.path}.")
-            return utils.tokens_load(self.token_type, self.language)
-
-        if isinstance(data, Generator):
-            for value in data:
-                if isinstance(value, list):
-                    for instance in value:
-                        self.tokens.append(self._tokenizer(instance))
+        ix: int = 0
+        indexes: list[int] = []
+        with open(self.path, "wb") as f:
+            for batch in data_chunks:
+                batch_tokens: list[list[str]] = []
+                for instance in batch:
+                    token: list[str] = self._tokenizer(instance)
+                    indexes += [ix] * len(token)
+                    ix += 1
+                    batch_tokens.append(token)
+                if keep_in_memory:
+                    self.tokens.append(self._tokenizer(instance))
                 else:
-                    self._tokenizer(value)
-            self._save()
-            return self.tokens
+                    pickle.dump(batch_tokens, f)
 
-        raise NotImplementedError("Data must be a generator.")
+        with open(self.ix_path, "wb") as f:
+            pickle.dump(indexes, f)
+
+    def tokens_generator(self) -> Iterator[list[str]]:
+        with open(self.path, "rb") as f:
+            while True:
+                try:
+                    yield pickle.load(f)
+                except EOFError:
+                    break
 
     @classmethod
     def token_types(cls) -> list[str]:
@@ -75,24 +91,23 @@ class Tokenizer:
         at: list[str] = instance[f"abstract_tokens_{self.language}"]
         kt: list[str] = instance[f"keywords_tokens_{self.language}"]
 
-        # TODO: Remove this when the data is fixed.
         if tt is None:
             tt = [""]
-        if at is None:
-            at = [""]
-        if kt is None:
-            kt = [""]
+        assert at is not None
+        assert kt is not None
 
         return tt, at, kt
 
     def _generate_paragraph_tokens(self, instance: RealDictRow) -> list[str]:
         tt, at, kt = self._get_instance_tokens(instance)
         paragraph_tokens: list[str] = [". ".join(tt + at + kt)]
+        assert len(paragraph_tokens) > 0
         return paragraph_tokens
 
     def _generate_sentence_tokens(self, instance: RealDictRow) -> list[str]:
         tu, au, ku = self._get_instance_tokens(instance)
         sentence_tokens: list[str] = tu + au + ku
+        assert len(sentence_tokens) > 0
         return sentence_tokens
 
     def _generate_sentence_with_keywords_tokens(self, instance: RealDictRow) -> list[str]:
@@ -101,30 +116,51 @@ class Tokenizer:
         kw_str: str = ". ".join(kt)
         for i in range(len(sentence_tokens)):
             sentence_tokens[i] += f". {kw_str}"
+
+        assert len(sentence_tokens) > 0
         return sentence_tokens
 
     def _generate_8gram_tokens(self, instance: RealDictRow) -> list[str]:
         n = 8
-        tt, at, kt = self._get_instance_tokens(instance)
-        ngrams_tt: list[str] = []
-        ngrams_at: list[str] = []
-        for i in range(len(tt)):
-            ngrams_tt += self.__generate_ngram_tokens(tt[i].split(), n)
-        for i in range(len(at)):
-            ngrams_at += self.__generate_ngram_tokens(at[i].split(), n)
-        return ngrams_tt + ngrams_at
+        pt: dict[str, list[str]] = {}
+        pt['tt'], pt['at'], pt['kt'] = self._get_instance_tokens(instance)
+        ngrams: dict[str, list[str]] = {
+            "tt": [],
+            "at": [],
+        }
+        for pta in ('tt', 'at'):
+            p = pt[pta]
+            for i in range(len(p)):
+                tokens: list[str] = self.__generate_ngram_tokens(p[i].split(), n)
+                if tokens is None or len(tokens) == 0:
+                    continue
+                assert isinstance(tokens[0], str)
+                ngrams[pta].extend(tokens)
+
+        tokens: list[str] = ngrams['tt'] + ngrams['at']
+        assert len(tokens) > 0
+        return tokens
 
     def _generate_8gram_with_keywords_tokens(self, instance: RealDictRow) -> list[str]:
         n = 8
-        tt, at, kt = self._get_instance_tokens(instance)
+        pt: dict[str, list[str]] = {}
+        pt['tt'], pt['at'], kt = self._get_instance_tokens(instance)
         kw_str = ". ".join(kt)
-        ngrams_tt: list[str] = []
-        ngrams_at: list[str] = []
-        for i in range(len(tt)):
-            ngrams_tt += self.__generate_ngram_tokens(tt[i].split(), n, kw_str)
-        for i in range(len(at)):
-            ngrams_at += self.__generate_ngram_tokens(at[i].split(), n, kw_str)
-        return ngrams_tt + ngrams_at
+        ngrams: dict[str, list[str]] = {
+            "tt": [],
+            "at": [],
+        }
+        for pta in ('tt', 'at'):
+            p = pt[pta]
+            for i in range(len(p)):
+                tokens: list[str] = self.__generate_ngram_tokens(p[i].split(), n, kw_str)
+                if tokens is None or len(tokens) == 0:
+                    continue
+                assert isinstance(tokens[0], str)
+                ngrams[pta].extend(tokens)
+        tokens: list[str] = ngrams['tt'] + ngrams['at']
+        assert len(tokens) > 0
+        return tokens
 
     @staticmethod
     def __generate_ngram_tokens(
@@ -133,8 +169,9 @@ class Tokenizer:
         """
         Generates n-gram tokens from a list of words.
         """
+        assert isinstance(words, list)
         if len(words) < n:
-            return words
+            return [" ".join(words)]
 
         ngram_tokens: list[str] = []
         for i in range(len(words) - n + 1):
@@ -143,3 +180,11 @@ class Tokenizer:
                 ngram += f". {kw_tokens}"
             ngram_tokens.append(ngram)
         return ngram_tokens
+
+
+if __name__ == "__main__":
+    LANGUAGES = ["pt", "en"]
+    for language in LANGUAGES:
+        for token_type in Tokenizer.token_types():
+            tokenizer = Tokenizer(token_type, language)
+            # tokens: list[list[str]] = tokenizer.tokenize(data=utils.tokenized_metadata_generator())

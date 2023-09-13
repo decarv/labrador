@@ -19,7 +19,7 @@ import gc
 import json
 import os
 import time
-from typing import Optional
+from typing import Optional, Iterator
 
 from psycopg2.extras import RealDictRow
 import torch
@@ -152,32 +152,22 @@ def local_searcher_pipeline(
 
 
 if __name__ == '__main__':
+    chunk_size: int = int(1024 * 4)
     language = "pt"
     for token_type in Tokenizer.token_types():
         tokenizer = Tokenizer(token_type, language)
-        tokens: list[list[str]] = tokenizer.tokenize(data=utils.tokenized_metadata_generator())
+        # TODO: quick fix for the last batch
+        #  The last batch is a list[list[str]]... why?
+        #  The size of the chunk changes the way the data is read
+        #  The last batch is read as list of lists in case of size not divisible by batch...
+        data_chunks: Iterator[RealDictRow] = utils.tokenized_metadata_generator(chunk_size)
+        tokenizer.tokenize(data_chunks)
         for model in config.MODELS:
-            if not os.path.exists(path := utils.embeddings_path(model, token_type, language)):
-                del tokenizer
-                gc.collect()
+            # directory = os.path.dirname(utils.embeddings_path(model, token_type, language))
+            # if os.listdir(directory):
+            #     logger.info(f"Embeddings already exist in {directory}. Skipping...")
+            #     continue
 
-                logger.info(f"Encoding {token_type} with {model}.")
-                encoder: Encoder = Encoder(model_name=model)
-                embeddings, indices = encoder.encode(tokens)
-                utils.embeddings_save(embeddings, model, token_type, language)
-                utils.indices_save(indices, token_type, language)
-
-                del encoder, embeddings, indices
-                gc.collect()
-                torch.cuda.empty_cache()
-            else:
-                logger.info(f"Embeddings already exist: {path}. Skipping...")
-                continue
-
-    run_experiment(
-        name="Local Searcher",
-        description="This experiment evaluates the performance of the local searcher.",
-        pipeline=local_searcher_pipeline,
-        args=(),
-        filename=experiments_path("local_searcher")
-    )
+            token_batch_iterator: Iterator[list[str]] = tokenizer.tokens_generator()
+            encoder: Encoder = Encoder(model_name=model, token_type=token_type)
+            encoder.encode(token_batch_iterator)

@@ -35,7 +35,6 @@ import config
 from config import DATA_DIR, POSTGRESQL_DB_NAME, POSTGRESQL_DB_USER, POSTGRESQL_DB_PASSWORD, \
     POSTGRESQL_DB_HOST, POSTGRESQL_DB_PORT
 
-
 def configure_logger(name):
     logger = logging.getLogger(name)
     logger.setLevel(config.LOG_LEVEL)
@@ -58,7 +57,6 @@ def configure_logger(name):
         logger.addHandler(logfile_handler)
 
     return logger
-
 
 def log(logger):
     """
@@ -153,7 +151,7 @@ def tokenized_metadata_read() -> list[RealDictRow]:
     return db_read("tokenized_metadata")
 
 
-def tokenized_metadata_generator() -> Generator[RealDictRow, Any, None]:
+def tokenized_metadata_generator(chunk: int = 10000) -> Generator[RealDictRow, Any, None]:
     with psycopg2.connect(
         dbname=POSTGRESQL_DB_NAME,
         user=POSTGRESQL_DB_USER,
@@ -162,9 +160,9 @@ def tokenized_metadata_generator() -> Generator[RealDictRow, Any, None]:
         port=POSTGRESQL_DB_PORT
     ) as conn:
         with conn.cursor(cursor_factory=RealDictCursor) as cursor:
-            cursor.execute(f"SELECT * FROM tokenized_metadata;")
+            cursor.execute(f"SELECT * FROM clean_tokenized_metadata;")
             while True:
-                instances = cursor.fetchmany(1000)
+                instances = cursor.fetchmany(chunk)
                 if not instances:
                     break
                 yield instances
@@ -212,28 +210,28 @@ def tokenized_metadata_insert(
             conn.commit()
 
 
-def embeddings_path(model_name: str, units_type: str, language: str, save_dir: str = config.EMBEDDINGS_DIR) -> str:
-    if not os.path.exists(save_dir):
-        os.makedirs(save_dir)
+def embeddings_path(
+        model_name: str, token_type: str, language: str, chunk_number: int = -1, save_dir: str = config.EMBEDDINGS_DIR
+) -> str:
+    directory = os.path.join(save_dir, model_name)
+    os.makedirs(directory, exist_ok=True)
+    filepath = os.path.join(directory, f"{language}_{token_type}_embeddings")
 
-    filename = f"{model_name}_{units_type}_{language}_embeddings.pt"
-    path = os.path.join(save_dir, filename)
-    return path
+    if chunk_number >= 0:
+        filepath += f"_{chunk_number}.pt"
+    else:
+        filepath += ".pt"
+    return filepath
 
 
 def embeddings_save(
-        embeddings: torch.tensor, model_name: str, token_type: str, language: str, save_dir=config.EMBEDDINGS_DIR
+        embeddings: torch.tensor, model_name: str, token_type: str, language: str, chunk_number: int = -1,
+        save_dir=config.EMBEDDINGS_DIR
 ) -> None:
-    if not os.path.exists(save_dir):
-        os.makedirs(save_dir)
-
+    os.makedirs(save_dir, exist_ok=True)
     model_name = model_name.replace("/", "-")
-    path = embeddings_path(model_name, token_type, language, save_dir)
-    np.save(
-        path,
-        embeddings,
-        allow_pickle=False
-    )
+    path = embeddings_path(model_name, token_type, language, chunk_number)
+    torch.save(embeddings, path)
 
 
 def embeddings_load(model_name: str, units_type: str, language: str, save_dir=config.EMBEDDINGS_DIR) -> torch.tensor:
@@ -242,21 +240,22 @@ def embeddings_load(model_name: str, units_type: str, language: str, save_dir=co
     return torch.load(path)
 
 
-def indices_path(tokens_type: str, language: str, save_dir=config.INDICES_DIR) -> str:
-    if not os.path.exists(save_dir):
-        os.makedirs(save_dir)
-
-    filename = f"{tokens_type}_{language}_indices.pkl"
-    path = os.path.join(save_dir, filename)
-    return path
-
-
 def indices_load(token_type: str, language: str, save_dir: str = config.INDICES_DIR) -> list[int]:
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)
 
     with open(indices_path(token_type, language, save_dir), "rb") as f:
         return pickle.load(f)
+
+
+def indices_path(
+        tokens_type: str, language: str, save_dir: str = config.INDICES_DIR
+) -> str:
+    directory = os.path.join(save_dir)
+    os.makedirs(directory, exist_ok=True)
+    filename = f"{language}_{tokens_type}_indices.pkl"
+    path = os.path.join(directory, filename)
+    return path
 
 
 def indices_save(indices: list[int], token_type: str, language: str, save_dir: str = config.INDICES_DIR) -> None:
@@ -268,12 +267,13 @@ def indices_save(indices: list[int], token_type: str, language: str, save_dir: s
         pickle.dump(indices, f)
 
 
-def tokens_path(tokens_type: str, language: str, save_dir=config.TOKENS_DIR) -> str:
-    if not os.path.exists(save_dir):
-        os.makedirs(save_dir)
-
-    filename = f"{tokens_type}_{language}_tokens.pkl"
-    path = os.path.join(save_dir, filename)
+def tokens_path(
+        tokens_type: str, language: str, save_dir: str = config.TOKENS_DIR
+) -> str:
+    directory = os.path.join(save_dir)
+    os.makedirs(directory, exist_ok=True)
+    filename = f"{language}_{tokens_type}_tokens.pkl"
+    path = os.path.join(directory, filename)
     return path
 
 
