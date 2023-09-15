@@ -51,7 +51,7 @@ def configure_logger(name):
         logfile_handler = handlers.RotatingFileHandler(
                 os.path.join(config.LOG_DIR, config.LOG_FILENAME),
                 maxBytes=5 * 1024 * 1024,
-                backupCount=2
+                backupCount=10
         )
         logfile_handler.setFormatter(log_formatter)
         logger.addHandler(logfile_handler)

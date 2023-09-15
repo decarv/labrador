@@ -1,6 +1,6 @@
 #!/bin/bash
 
-source ../.venv/bin/activate
+source .venv/bin/activate
 
 # Create a new tmux session without attaching to it
 tmux kill-session -t experiments
@@ -20,7 +20,7 @@ tmux send-keys 'htop' C-m
 # Switch to the lower right pane
 tmux select-pane -D
 # Run the experiments.py script
-tmux send-keys 'python3 ./experiments.py' C-m
+tmux send-keys 'python3 ./src/experiments.py' C-m
 
 # Finally, attach to the tmux session
 tmux attach -t experiments

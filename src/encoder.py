@@ -17,7 +17,8 @@ limitations under the License.
 
 """
 import sys
-from typing import Iterator
+from typing import Iterator, Union, Optional
+from torch.cuda import OutOfMemoryError
 
 import nvidia_smi
 
@@ -43,7 +44,6 @@ class Encoder:
         self.model = SentenceTransformer(
             model_name, device=self.device, cache_folder=config.MODEL_CACHE_DIR
         )
-        self.model.to(self.device)
 
         nvidia_smi.nvmlInit()
         gpu_index: int = 0
@@ -52,44 +52,64 @@ class Encoder:
 
     def encode(self, chunk_iterator: Iterator[list[str]]):
         for chunk in chunk_iterator:
-            if config.ALLOW_CACHING and os.path.exists(utils.embeddings_path(self.model_name, self.token_type, self.language, self.chunk_number)):
+            path = utils.embeddings_path(self.model_name, self.token_type, self.language, self.chunk_number)
+            if config.ALLOW_CACHING and os.path.exists(path):
                 logger.info(f"Embeddings already cached: {self.chunk_number}. Skipping...")
             else:
                 embeddings: torch.tensor = self._encode_chunk(chunk)
                 logger.info("Saving embeddings...")
-                utils.embeddings_save(embeddings, self.model_name, self.token_type, self.language, self.chunk_number)
-                logger.info("Embeddings saved.")
+                if len(embeddings) == 0:
+                    logger.error(f"Embeddings of {self.chunk_number} are EMPTY. Skipping...")
+                else:
+                    utils.embeddings_save(embeddings, self.model_name, self.token_type, self.language, self.chunk_number)
+                    logger.info("Embeddings saved.")
             self.chunk_number += 1
 
     @log(logger)
-    def _encode_chunk(self, batch: list[str]) -> torch.tensor:
+    def _encode_chunk(self, chunk: list[str]) -> torch.tensor:
+        batch_size = 128
         embeddings: list[torch.tensor] = []
-        for batch in self.batch_generator(batch):
-            
+        while batch_size > 1:
+            try:
+                embeddings = self._encode_batch(chunk, batch_size)
+                concat_embeddings: torch.tensor = torch.cat(embeddings)
+                return concat_embeddings
+            except OutOfMemoryError:
+                batch_size //= 2
+                logger.info(f"OutOfMemoryError. Reducing batch size to {batch_size}.")
+            except RuntimeError as e:
+                logger.exception(f"Ex: {e} in chunk {self.chunk_number}")
+                return torch.tensor([])
+
+        logger.exception("OutOfMemoryError. Batch size is 1. Skipping chunk.")
+        return torch.tensor([])
+
+    def _encode_batch(self, batch: list[str], batch_size=64) -> list[torch.tensor]:
+        embeddings: list[torch.tensor] = []
+        for batch in self.batch_processor(batch, batch_size=64):
             with torch.no_grad():
-                try:
-                    batch_embeddings: torch.tensor = self.model.encode(
-                        batch, batch_size=len(batch), convert_to_tensor=True
-                    )
-                    embeddings.append(batch_embeddings.cpu())
-                    free_mem_mb = self.get_gpu_mem_info()
-                    if free_mem_mb < 200:
-                        logger.info(f"Free memory: {free_mem_mb} MB. Cleaning cache.")
-                        torch.cuda.empty_cache()
-                except Exception as e:
-                    logger.exception(f"Ex: {e}")
-        return torch.cat(embeddings)
+                torch.cuda.empty_cache()
+                batch_embeddings: torch.tensor = self.model.encode(
+                    batch, batch_size=len(batch), convert_to_tensor=True
+                )
+                embeddings.append(batch_embeddings.cpu())
+        return embeddings
 
     def get_gpu_mem_info(self):
         info = nvidia_smi.nvmlDeviceGetMemoryInfo(self.handle)
         free_mem_mb = info.free / (1024**2)
         return free_mem_mb
 
-    def batch_generator(self, data: list[str]):
-        batch_size = 64
-        # free_mem_mb = self.get_gpu_mem_info()
-        # data_size_mb = sys.getsizeof(data) / (1024**2)
-        # batch_size: int = int(max((free_mem_mb // data_size_mb) * 0.8, batch_size))
-        for i in range(0, len(data), batch_size):
-            yield data[i:i + batch_size]
+    def _flatten(self, data: Union[list[str], list[list[str]]]) -> list[str]:
+        if isinstance(data[0], list):
+            tmp_batch = []
+            for sublist in data:
+                tmp_batch.extend(sublist)
+            return tmp_batch
+        else:
+            return data
 
+    def batch_processor(self, data: list[str], batch_size: int = 256):
+        flattened_batch: list[str] = self._flatten(data)
+        for i in range(0, len(flattened_batch), batch_size):
+            yield flattened_batch[i:i + batch_size]

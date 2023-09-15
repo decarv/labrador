@@ -154,20 +154,15 @@ def local_searcher_pipeline(
 if __name__ == '__main__':
     chunk_size: int = int(1024 * 4)
     language = "pt"
-    for token_type in Tokenizer.token_types():
+    token_types = ["sentence", "paragraph", "sentence_with_keywords"]# Tokenizer.token_types()
+    for token_type in token_types:
+        logger.info(f"CHECKPOINT: Starting tokenizer for {token_type} {language}...")
         tokenizer = Tokenizer(token_type, language)
-        # TODO: quick fix for the last batch
-        #  The last batch is a list[list[str]]... why?
-        #  The size of the chunk changes the way the data is read
-        #  The last batch is read as list of lists in case of size not divisible by batch...
         data_chunks: Iterator[RealDictRow] = utils.tokenized_metadata_generator(chunk_size)
         tokenizer.tokenize(data_chunks)
         for model in config.MODELS:
-            # directory = os.path.dirname(utils.embeddings_path(model, token_type, language))
-            # if os.listdir(directory):
-            #     logger.info(f"Embeddings already exist in {directory}. Skipping...")
-            #     continue
-
             token_batch_iterator: Iterator[list[str]] = tokenizer.tokens_generator()
+
+            logger.info(f"CHECKPOINT: Starting encoding for {model}...")
             encoder: Encoder = Encoder(model_name=model, token_type=token_type)
             encoder.encode(token_batch_iterator)
