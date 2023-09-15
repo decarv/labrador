@@ -67,23 +67,30 @@ class Encoder:
                     logger.info("Embeddings saved.")
             self.chunk_number += 1
 
+    @log
     def _get_dynamic_batches(self, chunk: list[list[str]]) -> torch.tensor:
-        mem_overhead_estimation = 0.7
-        free_mb_mem = self._get_gpu_mem_info()
+        mem_overhead_estimation = 0.5
+        free_mem_mb = self._get_gpu_mem_info()
         chunk: list[str] = self._flatten(chunk)
         i: int = 0
-        batches: list[list[str]] = []
-        batch_size: int = 0
+        batches: list[list[str]] = [[]]
+        batch_size_mb: int = 0
+        avg_batch_size_mb: int = 0
         for volume in chunk:
-            if batch_size < free_mb_mem * mem_overhead_estimation:
+            size_of_volume_mb: int = len(volume.encode('utf-8')) // (1024**2)  # sys.getsizeof(volume)
+            if batch_size_mb + size_of_volume_mb < free_mem_mb * mem_overhead_estimation:
                 batches[i].append(volume)
-                batch_size += sys.getsizeof(volume)
+                batch_size_mb += size_of_volume_mb
             else:
                 i += 1
                 batches.append([volume])
-                batch_size = sys.getsizeof(volume)
+                batch_size_mb = size_of_volume_mb
+            avg_batch_size_mb += size_of_volume_mb
+        avg_batch_size_mb = avg_batch_size_mb // len(batches)
+        logger.info(f"Average size of batches: {avg_batch_size_mb} mb.")
         return batches
 
+    @log
     def _encode_batches(self, batches: list[list[str]]) -> torch.tensor:
         embeddings: list[torch.tensor] = []
         for batch in batches:
@@ -100,8 +107,7 @@ class Encoder:
         while batch_size > 0:
             try:
                 embeddings = self._encode_batch(chunk, batch_size)
-                concat_embeddings: torch.tensor = torch.cat(embeddings)
-                return concat_embeddings
+                return torch.cat(embeddings)
             except OutOfMemoryError:
                 batch_size //= 2
                 logger.error(f"OutOfMemoryError. Reducing batch size to {batch_size}.")
