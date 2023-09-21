@@ -5,6 +5,36 @@
 ### References:
 
 #### General Topic
+
+
+Advanced Information Retrieval 2021
+https://www.youtube.com/playlist?list=PLSg1mducmHTPZPDoal4m59pPxxsceXF-y
+
+In the following you find a (selective) list of articles / applications using SentenceTransformers to do amazing stuff. Feel free to contact me (info@nils-reimers.de) to add you application here.
+
+    December 2021 - Sentence Transformer Fine-Tuning (SetFit): Outperforming GPT-3 on few-shot Text-Classification while being 1600 times smaller
+
+    October 2021: Natural Language Processing (NLP) for Semantic Search
+
+    January 2021 - Advance BERT model via transferring knowledge from Cross-Encoders to Bi-Encoders
+
+    November 2020 - How to Build a Semantic Search Engine With Transformers and Faiss
+
+    October 2020 - Topic Modeling with BERT
+
+    September 2020 - Elastic Transformers - Making BERT stretchy - Scalable Semantic Search on a Jupyter Notebook
+
+    July 2020 - Simple Sentence Similarity Search with SentenceBERT
+
+    May 2020 - HN Time Machine: finally some Hacker News history!
+
+    May 2020 - A complete guide to transfer learning from English to other Languages using Sentence Embeddings BERT Models
+
+    March 2020 - Building a k-NN Similarity Search Engine using Amazon Elasticsearch and SageMaker
+
+    February 2020 - Semantic Search Engine with Sentence BERT
+
+
 - https://www.elastic.co/blog/how-to-deploy-nlp-text-embeddings-and-vector-search
 - https://rom1504.medium.com/semantic-search-with-embeddings-index-anything-8fb18556443c
 - https://huggingface.co/course/chapter5/6?fw=tf
@@ -29,6 +59,7 @@
 - https://developer.huawei.com/consumer/en/doc/development/hiai-Guides/text-embedding-0000001055002819
 
 #### NNs & Similarity Search
+- End-to-End Retrieval in Continuous Space (2018): https://arxiv.org/abs/1811.08008
 - https://github.com/currentslab/awesome-vector-search
 - http://simsearch.yury.name/
 - https://cloud.google.com/vertex-ai/docs/matching-engine/overview
@@ -40,3 +71,8 @@
 - https://en.wikipedia.org/wiki/Evaluation_measures_(information_retrieval)
 - https://en.wikipedia.org/wiki/Discounted_cumulative_gain
 - https://platform.openai.com/docs/guides/embeddings
+
+#### Hybrid Search
+
+- Complementing Lexical Retrieval with Semantic Residual Embedding (2020): https://arxiv.org/abs/2004.13969
+

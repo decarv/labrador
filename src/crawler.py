@@ -27,8 +27,8 @@ from bs4 import BeautifulSoup
 from typing import Optional
 
 import config
-from models.webpage import Webpage
-from models.metadata import Metadata
+from ingest import Webpage
+from ingest.metadata import Metadata
 
 
 class Crawler:

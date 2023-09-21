@@ -6,8 +6,8 @@ from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
 from sentence_transformers import SentenceTransformer
 
-from models.webpage import Webpage
-from models.metadata import Metadata
+from ingest import Webpage
+from ingest.metadata import Metadata
 from searcher import Searcher
 
 
@@ -21,7 +21,7 @@ language = "pt"
 model_name = config.MODELS[1]
 
 data = load_metadata_from_csv()
-embeddings = embeddings_load(model_name=model_name, units_type=units_type, language=language,
+embeddings = embeddings_load(model_name=model_name, tokens_type=units_type, language=language,
                              save_dir=config.EMBEDDINGS_DIR)
 encoder_model = SentenceTransformer(model_name, device='cuda', cache_folder=config.MODEL_CACHE_DIR)
 imap = indices_load(token_type=units_type, language=language, save_dir=config.INDICES_DIR)

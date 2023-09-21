@@ -24,6 +24,7 @@ from logging import handlers
 from typing import Union, Optional, Generator, Any
 
 import psycopg2
+import asyncpg
 import requests
 import functools
 import numpy as np
@@ -34,6 +35,7 @@ from psycopg2.extras import RealDictCursor, RealDictRow
 import config
 from config import DATA_DIR, POSTGRESQL_DB_NAME, POSTGRESQL_DB_USER, POSTGRESQL_DB_PASSWORD, \
     POSTGRESQL_DB_HOST, POSTGRESQL_DB_PORT
+import glob
 
 def configure_logger(name):
     logger = logging.getLogger(name)
@@ -151,7 +153,7 @@ def tokenized_metadata_read() -> list[RealDictRow]:
     return db_read("tokenized_metadata")
 
 
-def tokenized_metadata_generator(chunk: int = 10000) -> Generator[RealDictRow, Any, None]:
+def tokenized_metadata_generator(chunk: int = 4096) -> Generator[RealDictRow, Any, None]:
     with psycopg2.connect(
         dbname=POSTGRESQL_DB_NAME,
         user=POSTGRESQL_DB_USER,
@@ -167,6 +169,16 @@ def tokenized_metadata_generator(chunk: int = 10000) -> Generator[RealDictRow, A
                     break
                 yield instances
 
+                
+def db_get_conn():
+    return psycopg2.connect(
+        dbname=POSTGRESQL_DB_NAME,
+        user=POSTGRESQL_DB_USER,
+        password=POSTGRESQL_DB_PASSWORD,
+        host=POSTGRESQL_DB_HOST,
+        port=POSTGRESQL_DB_PORT
+    )
+
 
 def db_read(table_name: str) -> list[RealDictRow]:
     with psycopg2.connect(
@@ -180,6 +192,16 @@ def db_read(table_name: str) -> list[RealDictRow]:
             cursor.execute(f"SELECT * FROM {table_name};")
             instances = cursor.fetchall()
     return instances
+
+
+async def db_get_conn_async():
+    return await asyncpg.connect(
+        database=POSTGRESQL_DB_NAME,
+        user=POSTGRESQL_DB_USER,
+        password=POSTGRESQL_DB_PASSWORD,
+        host=POSTGRESQL_DB_HOST,
+        port=POSTGRESQL_DB_PORT
+    )
 
 
 def tokenized_metadata_insert(
@@ -217,7 +239,8 @@ def embeddings_path(
     os.makedirs(directory, exist_ok=True)
     filepath = os.path.join(directory, f"{language}_{token_type}_embeddings")
 
-    if chunk_number >= 0:
+    print(chunk_number, type(chunk_number))
+    if int(chunk_number) >= 0:
         filepath += f"_{chunk_number}.pt"
     else:
         filepath += ".pt"
@@ -234,18 +257,24 @@ def embeddings_save(
     torch.save(embeddings, path)
 
 
-def embeddings_load(model_name: str, units_type: str, language: str, save_dir=config.EMBEDDINGS_DIR) -> torch.tensor:
+def embeddings_load(
+        model_name: str, tokens_type: str, language: str, save_dir=config.EMBEDDINGS_DIR
+) -> torch.tensor:
     model_name = model_name.replace("/", "-")
-    path = embeddings_path(model_name, units_type, language, save_dir)
-    return torch.load(path)
+    path = embeddings_path(model_name, tokens_type, language)[0:-3] + "*"
+    filenames = [filename for filename in glob.glob(path)]  # unordered filenames
+    ordered_embeddings_paths = [embeddings_path(model_name, tokens_type, language, i) for i in range(len(filenames))]
+    embeddings: list[torch.tensor] = [torch.load(path) for path in ordered_embeddings_paths]
+    return torch.cat(embeddings)
 
 
-def indices_load(token_type: str, language: str, save_dir: str = config.INDICES_DIR) -> list[int]:
+def indices_load(token_type: str, language: str, save_dir: str = config.INDICES_DIR) -> tuple[list[int], list[int]]:
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)
 
     with open(indices_path(token_type, language, save_dir), "rb") as f:
-        return pickle.load(f)
+        l = pickle.load(f)
+        return l[0], l[1]
 
 
 def indices_path(
@@ -258,7 +287,7 @@ def indices_path(
     return path
 
 
-def indices_save(indices: list[int], token_type: str, language: str, save_dir: str = config.INDICES_DIR) -> None:
+def indices_save(indices: tuple[list[int], list[int]], token_type: str, language: str, save_dir: str = config.INDICES_DIR) -> None:
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)
 

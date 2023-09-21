@@ -51,14 +51,14 @@ class Encoder:
         self.handle = nvidia_smi.nvmlDeviceGetHandleByIndex(gpu_index)
         self.chunk_number: int = 0
 
+    # TODO: improve embeddings_save to store indices
     def encode(self, chunk_iterator: Iterator[list[list[str]]]):
         for chunk in chunk_iterator:
             path = utils.embeddings_path(self.model_name, self.token_type, self.language, self.chunk_number)
             if config.ALLOW_CACHING and os.path.exists(path):
                 logger.info(f"Embeddings already cached: {self.chunk_number}. Skipping...")
             else:
-                batches = self._get_dynamic_batches(chunk)
-                embeddings: torch.tensor = self._encode_batches(batches)
+                embeddings: torch.tensor = self._encode_chunk(chunk)
                 logger.info("Saving embeddings...")
                 if len(embeddings) == 0:
                     logger.error(f"Embeddings of {self.chunk_number} are EMPTY. Skipping...")
@@ -68,26 +68,30 @@ class Encoder:
             self.chunk_number += 1
 
     @log
-    def _get_dynamic_batches(self, chunk: list[list[str]]) -> torch.tensor:
-        mem_overhead_estimation = 0.5
-        free_mem_mb = self._get_gpu_mem_info()
-        chunk: list[str] = self._flatten(chunk)
+    def _get_uniform_sized_batches(self, chunk: list[str]) -> torch.tensor:
+        percent_of_gpu_mem = 2500  # at most 3GiB of the GPU memory
+        max_estimated_mem = percent_of_gpu_mem * 80  # between 65 and 80% of the GPU memory
+
         i: int = 0
         batches: list[list[str]] = [[]]
-        batch_size_mb: int = 0
-        avg_batch_size_mb: int = 0
+        batch_size: int = 0
+        avg_batch_size: int = 0
         for volume in chunk:
-            size_of_volume_mb: int = len(volume.encode('utf-8')) // (1024**2)  # sys.getsizeof(volume)
-            if batch_size_mb + size_of_volume_mb < free_mem_mb * mem_overhead_estimation:
+            size_of_volume: int = len(volume.encode('utf-8'))  # sys.getsizeof(volume)
+            if batch_size + size_of_volume < max_estimated_mem:
                 batches[i].append(volume)
-                batch_size_mb += size_of_volume_mb
+                batch_size += size_of_volume
             else:
                 i += 1
                 batches.append([volume])
-                batch_size_mb = size_of_volume_mb
-            avg_batch_size_mb += size_of_volume_mb
-        avg_batch_size_mb = avg_batch_size_mb // len(batches)
-        logger.info(f"Average size of batches: {avg_batch_size_mb} mb.")
+                batch_size = size_of_volume
+            avg_batch_size += size_of_volume
+        avg_batch_size = avg_batch_size // len(batches)
+        avg_len_batch = sum([len(batch) for batch in batches]) // len(batches)
+        logger.info("Attempt to create uniform sized batches:")
+        for i, batch in enumerate(batches):
+            logger.info(f"Batch {i} has {len(batch)} items and {len(''.join(batch))} bytes")
+        logger.info(f"{len(batches)} batches of {avg_batch_size} mb on average and {avg_len_batch} items on average")
         return batches
 
     @log
@@ -101,20 +105,25 @@ class Encoder:
         return torch.cat(embeddings)
 
     @log
-    def _encode_chunk(self, chunk: list[str]) -> torch.tensor:
-        batch_size = self._get_batch_size(chunk)
-        embeddings: list[torch.tensor] = []
+    def _encode_chunk_2(self, chunk: list[list[str]]) -> torch.tensor:
+        chunk: list[str] = self._flatten(chunk)
+        batches = self._get_uniform_sized_batches(chunk)
+        embeddings: torch.tensor = self._encode_batches(batches)
+        return embeddings
+
+    @log
+    def _encode_chunk(self, chunk: list[list[str]]) -> torch.tensor:
+        chunk: list[str] = self._flatten(chunk)
+        batch_size = 256  # self._get_batch_size(chunk)
         while batch_size > 0:
             try:
-                embeddings = self._encode_batch(chunk, batch_size)
-                return torch.cat(embeddings)
+                return torch.cat(self._encode_batch(chunk, batch_size))
             except OutOfMemoryError:
                 batch_size //= 2
                 logger.error(f"OutOfMemoryError. Reducing batch size to {batch_size}.")
             except RuntimeError as e:
                 logger.exception(f"Ex: {e} in chunk {self.chunk_number}")
                 return torch.tensor([])
-
         logger.exception("OutOfMemoryError. Batch size is 1. Skipping chunk.")
         return torch.tensor([])
 
@@ -131,7 +140,7 @@ class Encoder:
 
     @log
     def _get_batch_size(self, chunk: list[str]) -> int:
-        batch_size = 128
+        batch_size = 256
         estimated_mem_overhead = 0.7
         free_mem_mb = self._get_gpu_mem_info()
         while batch_size > 0:
@@ -144,7 +153,7 @@ class Encoder:
 
     def _get_gpu_mem_info(self):
         info = nvidia_smi.nvmlDeviceGetMemoryInfo(self.handle)
-        free_mem_mb = info.free / (1024**2)
+        free_mem_mb = info.free
         return free_mem_mb
 
     @staticmethod
@@ -165,6 +174,6 @@ class Encoder:
         return flat_ds
 
     @staticmethod
-    def _batch_generator(data: list[str], batch_size: int = 256):
+    def _batch_generator(data: list[str], batch_size: int = 32):
         for i in range(0, len(data), batch_size):
             yield data[i:i + batch_size]

@@ -51,7 +51,8 @@ queries = {
         "computação quântica",
         "políticas públicas sobre inteligência artificial",
         "sindicatos e atribuições sociais",
-        "busca semântica"
+        "busca semântica",
+        "recuperação de informação",
     ],
     "en": [
         "ddos attack",
@@ -71,7 +72,7 @@ ANSWERS_IDS = [
 
 # Experiment functions
 
-def experiments_path(experiment_name: str, save_dir: str = config.EXPERIMENTS_RESULTS_DIR):
+def experiments_path(experiment_name: str, save_dir: str = config.RESULTS_DIR):
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)
 
@@ -152,17 +153,15 @@ def local_searcher_pipeline(
 
 
 if __name__ == '__main__':
-    chunk_size: int = int(1024 * 4)
+    chunk_size: int = 1024 * 4
     language = "pt"
     token_types = ["sentence", "paragraph", "sentence_with_keywords"]# Tokenizer.token_types()
     for token_type in token_types:
-        logger.info(f"CHECKPOINT: Starting tokenizer for {token_type} {language}...")
         tokenizer = Tokenizer(token_type, language)
-        data_chunks: Iterator[RealDictRow] = utils.tokenized_metadata_generator(chunk_size)
-        tokenizer.tokenize(data_chunks)
         for model in config.MODELS:
             token_batch_iterator: Iterator[list[str]] = tokenizer.tokens_generator()
 
             logger.info(f"CHECKPOINT: Starting encoding for {model}...")
             encoder: Encoder = Encoder(model_name=model, token_type=token_type)
             encoder.encode(token_batch_iterator)
+

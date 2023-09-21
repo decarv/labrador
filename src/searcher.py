@@ -25,8 +25,10 @@ from sentence_transformers import SentenceTransformer
 from utils import log
 import utils
 import config
+import json
 from sentence_transformers.util import cos_sim
 from abc import ABC, abstractmethod
+from sentence_transformers.util import semantic_search
 
 logger = utils.configure_logger(__name__)
 
@@ -40,7 +42,9 @@ class Searcher(ABC):
         self.model_name = kwargs.get('model_name')
         self.collection_name = kwargs.get('collection_name')
         self.language = kwargs.get('language')
-        self.units_type = kwargs.get('units_type')
+        self.token_type = kwargs.get('token_type')
+        if not self.token_type:
+            self.token_type = kwargs.get('units_type')
 
     def search(self, query: str, _filters: dict = None) -> list[dict]:
         hits = self._retrieve(query)
@@ -60,27 +64,99 @@ class Searcher(ABC):
     def _filter(self, hits, _filters=None):
         raise NotImplementedError
 
+    @abstractmethod
+    def _hits_save(self, query: str, hits: str):
+        pass
+
 
 class LocalSearcher(Searcher):
+    """
+    ls = LocalSearcher(
+        model_name=config.MODELS[0],
+        units_type="sentences",
+        language="pt",
+        data=utils.db_read("clean_metadata"),
+        training_data=utils.db_read("clean_metadata_tokenized"),
+    )
+    """
     def __init__(self, *args, **kwargs):
         super(LocalSearcher, self).__init__(*args, **kwargs)
+
+        for attr in ["language", "token_type"]:
+            if not getattr(self, attr):
+                raise ValueError(f"Missing required argument: {attr}.")
+
         self.encoder_model = SentenceTransformer(
-            self.model_name, device='cuda', cache_folder=config.MODEL_CACHE_DIR, convert_to_tensor=True
+            self.model_name, device='cuda', cache_folder=config.MODEL_CACHE_DIR
         )
-        self.embeddings: torch.tensor = utils.embeddings_load(self.model_name, self.units_type, self.language)
-        self.data: list[RealDictRow] = utils.metadata_read()
-        self.imap: list[int] = utils.indices_load(self.units_type, self.language)
+        self.data: list[RealDictRow] = kwargs.get('data')
+        self.tokenized_data: list[RealDictRow] = kwargs.get('training_data')
+        self.indices, self.token_indices = utils.indices_load(self.token_type, self.language)
+        self.corpus_embeddings: torch.tensor = utils.embeddings_load(self.model_name, self.token_type, self.language)
+
+    def _get_token_indices(self) -> list[int]:
+        """
+        indices:       [0 0 0 1 1 2 2 2 2 3 4 4 4]
+        token_indices: [0 1 2 0 1 0 1 2 3 0 0 1 2]
+        """
+        token_indices: list[int] = []
+        curr_idx: int = -1
+        token_idx: int = 0
+        for idx in self.indices:
+            if idx != curr_idx:
+                token_idx = 0
+                curr_idx = idx
+            token_indices.append(token_idx)
+            token_idx += 1
+        return token_indices
 
     @log(logger)
     def _retrieve(self, query: str, top_k: int = 30) -> list[dict]:
-        tensor: torch.tensor = self.process_query(query)
-        [scores] = cos_sim(tensor, self.embeddings)
-        hits = np.argsort(scores)[::-1][:top_k]
-        return [self.data[self.imap[i]] for i in hits]
+        """
+
+        self.indices is a map from the index of the embedding to the index of the data.
+
+        :param query:
+        :param top_k:
+        :return:
+        """
+        query: str = self.process_query(query)
+        query_embeddings: torch.tensor = self.embed_query(query)
+        scores: dict[int, float] = semantic_search(
+            query_embeddings=query_embeddings,
+            corpus_embeddings=self.corpus_embeddings,
+            top_k=top_k
+        )[0]
+        if not self.data and not self.tokenized_data:
+            raise ValueError("No data or tokenized data provided for searcher.")
+        hits: list[dict] = []
+        for idx, score in scores.items():
+            data_index = self.indices[idx]
+            title = self.data[data_index][f'title_{self.language}']
+            abstract = self.data[data_index][f'abstract_{self.language}']
+            keywords = self.data[data_index][f'keywords_{self.language}']
+
+            token_index = self.token_indices[idx]
+            token_hit = self.tokenized_data[data_index][f"title_tokens_{self.language}"][token_index]
+            hits.append(
+                {
+                    'score': score,
+                    'data': {
+                        'title': title,
+                        'abstract': abstract,
+                        'keywords': keywords
+                    },
+                    'token_hit': token_hit
+                }
+            )
+        return hits
+
+    def process_query(self, query):
+        return query
 
     @log(logger)
-    def process_query(self, query):
-        vector: np.ndarray = self.encoder_model.encode(query, show_progress_bar=False)
+    def embed_query(self, query):
+        vector: np.ndarray = self.encoder_model.encode(query, show_progress_bar=False, convert_to_tensor=True)
         return vector
 
     @log(logger)
@@ -90,6 +166,16 @@ class LocalSearcher(Searcher):
     @log(logger)
     def _filter(self, hits, _filters=None):
         return hits
+
+    def _hits_save(self, query: str, hits: str):
+        pass
+
+    def save(self, hits: list[dict[str]]):
+        with open(os.path.join(
+                config.RESULTS_DIR,
+                f"search_results_{self.model_name}_{self.token_type}_{self.language}.json"
+        ), "w") as f:
+            f.write(json.dumps(hits))
 
 #
 # class KeywordSearcher(Searcher):
@@ -188,3 +274,18 @@ class LocalSearcher(Searcher):
 #         """
 #         pass
 #
+
+
+if __name__ == "__main__":
+    model = config.MODELS[0]
+    query = "ataque de negação de serviço"
+    for model in config.MODELS:
+        ls = LocalSearcher(
+            model_name=model,
+            token_type="sentence",
+            language="pt",
+            data=utils.db_read("clean_metadata"),
+            training_data=utils.db_read("clean_tokenized_metadata")
+        )
+        _hits = ls.search(query)
+        ls.save(_hits)

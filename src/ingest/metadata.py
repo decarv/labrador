@@ -17,7 +17,7 @@ limitations under the License.
 """
 
 import re
-from models.webpage import Webpage
+from ingest.webpage import Webpage
 
 
 class Metadata:
