@@ -5,8 +5,8 @@
 *.ipynb_checkpoints/
 venv/
 
-src/deprecated/
-src/config.py
+labrador/deprecated/
+labrador/config.py
 
 experiments/
 data/

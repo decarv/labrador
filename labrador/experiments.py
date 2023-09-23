@@ -160,7 +160,6 @@ if __name__ == '__main__':
         tokenizer = Tokenizer(token_type, language)
         for model in config.MODELS:
             token_batch_iterator: Iterator[list[str]] = tokenizer.tokens_generator()
-
             logger.info(f"CHECKPOINT: Starting encoding for {model}...")
             encoder: Encoder = Encoder(model_name=model, token_type=token_type)
             encoder.encode(token_batch_iterator)

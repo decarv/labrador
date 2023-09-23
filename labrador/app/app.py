@@ -116,7 +116,7 @@ def generate_experiment_html(results):
             <!-- This is where items will be dropped -->
         </div>
     </div>
-    <script src="/app/experiments.js"></script>
+    <script labrador="/app/experiments.js"></script>
 </body>
 </html>"""
     return html_head + html_body + html_tail

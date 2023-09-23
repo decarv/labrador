@@ -15,14 +15,15 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 """
+
 import os
 import pickle
+import glob
 import re
 import time
 import logging
 from logging import handlers
 from typing import Union, Optional, Generator, Any
-
 import psycopg2
 import asyncpg
 import requests
@@ -35,7 +36,6 @@ from psycopg2.extras import RealDictCursor, RealDictRow
 import config
 from config import DATA_DIR, POSTGRESQL_DB_NAME, POSTGRESQL_DB_USER, POSTGRESQL_DB_PASSWORD, \
     POSTGRESQL_DB_HOST, POSTGRESQL_DB_PORT
-import glob
 
 def configure_logger(name):
     logger = logging.getLogger(name)
@@ -146,14 +146,34 @@ def post_request(
 
 
 def metadata_read() -> list[RealDictRow]:
-    return db_read("metadata")
+    with psycopg2.connect(
+            dbname=POSTGRESQL_DB_NAME,
+            user=POSTGRESQL_DB_USER,
+            password=POSTGRESQL_DB_PASSWORD,
+            host=POSTGRESQL_DB_HOST,
+            port=POSTGRESQL_DB_PORT
+    ) as conn:
+        with conn.cursor(cursor_factory=RealDictCursor) as cursor:
+            cursor.execute(f"SELECT * FROM clean_metadata ORDER BY id;")
+            instances = cursor.fetchall()
+    return instances
 
 
 def tokenized_metadata_read() -> list[RealDictRow]:
-    return db_read("tokenized_metadata")
+    with psycopg2.connect(
+            dbname=POSTGRESQL_DB_NAME,
+            user=POSTGRESQL_DB_USER,
+            password=POSTGRESQL_DB_PASSWORD,
+            host=POSTGRESQL_DB_HOST,
+            port=POSTGRESQL_DB_PORT
+    ) as conn:
+        with conn.cursor(cursor_factory=RealDictCursor) as cursor:
+            cursor.execute(f"SELECT * FROM clean_metadata ORDER BY clean_metadata_id;")
+            instances = cursor.fetchall()
+    return instances
 
 
-def tokenized_metadata_generator(chunk: int = 4096) -> Generator[RealDictRow, Any, None]:
+def metadata_generator(chunk: int = 4096) -> Generator[RealDictRow, Any, None]:
     with psycopg2.connect(
         dbname=POSTGRESQL_DB_NAME,
         user=POSTGRESQL_DB_USER,
@@ -162,7 +182,7 @@ def tokenized_metadata_generator(chunk: int = 4096) -> Generator[RealDictRow, An
         port=POSTGRESQL_DB_PORT
     ) as conn:
         with conn.cursor(cursor_factory=RealDictCursor) as cursor:
-            cursor.execute(f"SELECT * FROM clean_tokenized_metadata;")
+            cursor.execute(f"SELECT * FROM clean_metadata order by id;")
             while True:
                 instances = cursor.fetchmany(chunk)
                 if not instances:
@@ -239,7 +259,6 @@ def embeddings_path(
     os.makedirs(directory, exist_ok=True)
     filepath = os.path.join(directory, f"{language}_{token_type}_embeddings")
 
-    print(chunk_number, type(chunk_number))
     if int(chunk_number) >= 0:
         filepath += f"_{chunk_number}.pt"
     else:
@@ -344,3 +363,28 @@ def split_by_delimiters(string, delimiters: Union[list[str], str]) -> list[str]:
     else:
         pattern = r"{}".format(delimiters)
     return re.split(pattern, string)
+
+
+def mask_problematic_punctuation(text: str) -> str:
+    masked_text: str = text
+    masked_text = re.sub(r"([0-9]+)\.([0-9]+)", r"\1[DOT]\2", masked_text)
+    masked_text = re.sub(r"([A-Za-z])\.", r"\1[DOT]", masked_text)
+    masked_text = re.sub(r"(et al)\.", r"\1[DOT]", masked_text)
+    masked_text = re.sub(r"(var)\.", r"\1[DOT]", masked_text)
+    # Mask commas in compound names like 2,4,6-trinitrotoluene
+    masked_text = re.sub(r"[0-9A-Za-z]+(,[0-9A-Z])+-[a-zA-Z]+", lambda x: x.group().replace(",", "[COMMA]"), masked_text)
+
+    return masked_text
+
+
+def unmask_problematic_punctuation(text: str) -> str:
+    unmasked_text: str = text.replace("[DOT]", ".")
+    unmasked_text = unmasked_text.replace("[COMMA]", ",")
+    return unmasked_text
+
+
+def clean_string_list(strings: list[str]) -> list[str]:
+    strings = [s.strip() for s in strings]  # Remove leading and trailing whitespaces
+    strings = [s for s in strings if s != '']  # Remove empty strings
+    strings = [re.sub("\u00AD", "", s) for s in strings]  # Remove soft hyphens
+    return strings

@@ -35,16 +35,13 @@ log = log(logger)
 
 
 class Encoder:
-
     def __init__(self, model_name: str, token_type: str, language: str = "pt", cache: bool = True):
         self.cache = cache
         self.device = 'cuda:0'
         self.language = language
         self.token_type = token_type
         self.model_name = model_name.split("/")[-1]
-        self.model = SentenceTransformer(
-            model_name, device=self.device, cache_folder=config.MODEL_CACHE_DIR
-        )
+        self.model = SentenceTransformer(model_name, device=self.device, cache_folder=config.MODEL_CACHE_DIR)
 
         nvidia_smi.nvmlInit()
         gpu_index: int = 0
@@ -77,7 +74,7 @@ class Encoder:
         batch_size: int = 0
         avg_batch_size: int = 0
         for volume in chunk:
-            size_of_volume: int = len(volume.encode('utf-8'))  # sys.getsizeof(volume)
+            size_of_volume: int = len(volume.encode('utf-8'))
             if batch_size + size_of_volume < max_estimated_mem:
                 batches[i].append(volume)
                 batch_size += size_of_volume
