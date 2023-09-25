@@ -15,25 +15,20 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 """
-import gc
 import json
 import os
 import time
-from typing import Optional, Iterator
-
-from psycopg2.extras import RealDictRow
-import torch
-
-import config
-
-from encoder import Encoder
-
-import utils
-from tokenizer import Tokenizer
-from searcher import LocalSearcher  # , DenseSearcher
+from typing import Iterator
+from index.encoder import Encoder
+from index.tokenizer import Tokenizer
+from search.searcher import LocalNeuralSearcher
 import datetime
 
-logger = utils.configure_logger(__name__)
+import config
+from util import log
+
+logger = log.configure_logger(__file__)
+log = log.log(logger)
 
 QUERIES = [
     "ddos attack",
@@ -66,7 +61,7 @@ queries = {
 }
 
 ANSWERS_IDS = [
-    ""
+
 ]
 
 
@@ -128,13 +123,13 @@ def evaluate_speed(times):
 #     return times, results
 #
 
-@utils.log(logger)
+@log
 def local_searcher_pipeline(
         collection_name="abstracts", units_type="sentences", language="pt", device="cuda"
 ) -> tuple[list[float], list[list[dict]]]:
     # processor = Processor()
 
-    local_searcher = LocalSearcher(
+    local_searcher = LocalNeuralSearcher(
         model_name=config.MODELS[0],
         collection_name=collection_name,
         device=device,
@@ -163,4 +158,3 @@ if __name__ == '__main__':
             logger.info(f"CHECKPOINT: Starting encoding for {model}...")
             encoder: Encoder = Encoder(model_name=model, token_type=token_type)
             encoder.encode(token_batch_iterator)
-

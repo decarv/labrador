@@ -7,26 +7,25 @@ from fastapi.middleware.cors import CORSMiddleware
 from sentence_transformers import SentenceTransformer
 
 from ingest import Webpage
-from ingest.metadata import Metadata
-from searcher import Searcher
+from ingest.models import Metadata
+from search.searcher import Searcher
 
 
 import config
-from searcher import LocalSearcher
-from utils import embeddings_load, indices_load, load_metadata_from_csv, log
-
+from search.searcher import LocalNeuralSearcher
+from util.utils import embeddings_load, indices_load, load_metadata_from_csv
+from util.log import log
 
 units_type = "sentences"
 language = "pt"
 model_name = config.MODELS[1]
 
 data = load_metadata_from_csv()
-embeddings = embeddings_load(model_name=model_name, tokens_type=units_type, language=language,
-                             save_dir=config.EMBEDDINGS_DIR)
+embeddings = embeddings_load(model_name=model_name, tokens_type=units_type, language=language)
 encoder_model = SentenceTransformer(model_name, device='cuda', cache_folder=config.MODEL_CACHE_DIR)
 imap = indices_load(token_type=units_type, language=language, save_dir=config.INDICES_DIR)
 
-searcher = LocalSearcher(
+searcher = LocalNeuralSearcher(
     collection_name="abstracts",
     encoder_model=encoder_model,
     ranking_model=None,

@@ -26,10 +26,13 @@ import psycopg2
 from psycopg2.extras import RealDictRow
 
 import config
-import utils
+import ingest.processor
+import util.database
+import util.log
+from util import utils
 
-logger = utils.configure_logger(__name__)
-log = utils.log(logger)
+logger = util.log.configure_logger(__file__)
+log = util.log.log(logger)
 
 
 class Tokenizer:
@@ -60,12 +63,14 @@ class Tokenizer:
             port=config.POSTGRESQL_DB_PORT,
         )
 
-    def tokenize(self, data_chunks: Iterator[RealDictRow], keep_in_memory: bool = False) -> None:
+    @log
+    def tokenize(self, data_chunks: Iterator[list[RealDictRow]], keep_in_memory: bool = False) -> None:
         for chunk in data_chunks:
             self._tokenize_chunk(chunk, keep_in_memory)
         # asyncio.run(self._tokenize_async(data_chunks, keep_in_memory))
 
-    def _tokenize_chunk(self, chunk, keep_in_memory=False):
+    @log
+    def _tokenize_chunk(self, chunk: list[RealDictRow], keep_in_memory=False):
         insert_query = """
         INSERT INTO clean_metadata_tokens (clean_metadata_id, token, token_type, language, unique_hash)
         VALUES (%s, %s, %s, %s, %s)
@@ -95,8 +100,10 @@ class Tokenizer:
                         self.tokens.append(token)
 
                     try:
+                        logger.info(f"Inserting token id {ref_id} {unique_hash} into database")
                         cursor.execute(insert_query, record)
                         conn.commit()
+                        logger.info(f"Token id {ref_id} {unique_hash} inserted into database")
                     except Exception as e:
                         logger.error(f"Error inserting metadata_id {ref_id} into database: {e}")
         finally:
@@ -163,7 +170,7 @@ class Tokenizer:
 
     def _generate_paragraph_tokens(self, instance: RealDictRow) -> list[str]:
         title, abstract, keywords = self._get_data_to_tokenize(instance)
-        paragraph_tokens: list[str] = [title + ". "+ abstract + keywords]
+        paragraph_tokens: list[str] = [title + ". " + abstract + keywords]
         assert len(paragraph_tokens) > 0
         return paragraph_tokens
 
@@ -172,7 +179,7 @@ class Tokenizer:
         Each token is a sentence.
         """
         title, abstract, keywords = self._get_data_to_tokenize(instance)
-        sentence_tokens: list[str] = [title] + self.tokenize_sentences(abstract) + self.tokenize_keywords(keywords)
+        sentence_tokens: list[str] = [title] + self.tokenize_sentences(abstract) + [keywords]
         assert len(sentence_tokens) > 0
         return sentence_tokens
 
@@ -257,16 +264,16 @@ class Tokenizer:
     @staticmethod
     def tokenize_sentences(text) -> list[str]:
         # Mask problematic dots with a sentinel value
-        masked_text: str = utils.mask_problematic_punctuation(text)
+        masked_text: str = ingest.processor.mask_problematic_punctuation(text)
 
         # Split by delimiters
-        sentences: list[str] = re.split(r"([.!?])\s", masked_text)
+        sentences: list[str] = re.split(r"[.!?]\s", masked_text)
 
         # Unmask the special cases by replacing the sentinel value back to dots
         unmasked_sentences: list[str] = []
         for sentence in sentences:
-            unmasked_sentences.append(utils.unmask_problematic_punctuation(sentence))
-        unmasked_sentences = utils.clean_string_list(unmasked_sentences)
+            unmasked_sentences.append(ingest.processor.unmask_problematic_punctuation(sentence))
+        unmasked_sentences = ingest.processor.clean_string_list(unmasked_sentences)
 
         return unmasked_sentences
 
@@ -274,21 +281,7 @@ class Tokenizer:
 if __name__ == "__main__":
     languages: list[str] = ["pt"]
     for language in languages:
-        for token_type in Tokenizer.token_types():
-            if token_type == "paragraph":
-                continue
+        for token_type in ["sentence_with_keywords"]:
             tokenizer = Tokenizer(token_type, language)
-            data: Iterator[RealDictRow] = utils.metadata_generator()
+            data: Iterator[list[RealDictRow]] = util.database.table_chunk_generator("clean_metadata")
             tokenizer.tokenize(data)
-
-
-"""
-CREATE TABLE clean_metadata_tokens (
-    id SERIAL PRIMARY KEY,
-    clean_metadata_id integer NOT NULL,
-    token text,
-    token_type text,
-    language text,
-    unique_hash varchar(32) NOT NULL
-    );
-"""

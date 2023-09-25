@@ -8,9 +8,9 @@
 16386||10|C|G
 16386||-9223372036854775808|T|G
 16386||10|T|G</Grants>
-      <IntrospectionStateNumber>265909</IntrospectionStateNumber>
+      <IntrospectionStateNumber>3217546</IntrospectionStateNumber>
       <ServerVersion>14.9</ServerVersion>
-      <StartupTime>1695331216</StartupTime>
+      <StartupTime>1695659140</StartupTime>
       <TimeZones>true ACDT
 true ACSST
 false ACST
@@ -265,10 +265,10 @@ false Antarctica/Davis
 false Antarctica/DumontDUrville
 false Antarctica/Macquarie
 false Antarctica/Mawson
-false Antarctica/McMurdo
+true Antarctica/McMurdo
 false Antarctica/Palmer
 false Antarctica/Rothera
-false Antarctica/South_Pole
+true Antarctica/South_Pole
 false Antarctica/Syowa
 true Antarctica/Troll
 false Antarctica/Vostok
@@ -658,8 +658,8 @@ false NOVT
 false NPT
 false NST
 false NUT
-false NZ
-false NZ-CHAT
+true NZ
+true NZ-CHAT
 true NZDT
 false NZST
 false NZT
@@ -685,9 +685,9 @@ false PWT
 true PYST
 false PYT
 false Pacific/Apia
-false Pacific/Auckland
+true Pacific/Auckland
 false Pacific/Bougainville
-false Pacific/Chatham
+true Pacific/Chatham
 false Pacific/Chuuk
 true Pacific/Easter
 false Pacific/Efate
@@ -1021,10 +1021,10 @@ false posix/Antarctica/Davis
 false posix/Antarctica/DumontDUrville
 false posix/Antarctica/Macquarie
 false posix/Antarctica/Mawson
-false posix/Antarctica/McMurdo
+true posix/Antarctica/McMurdo
 false posix/Antarctica/Palmer
 false posix/Antarctica/Rothera
-false posix/Antarctica/South_Pole
+true posix/Antarctica/South_Pole
 false posix/Antarctica/Syowa
 true posix/Antarctica/Troll
 false posix/Antarctica/Vostok
@@ -1318,15 +1318,15 @@ true posix/MST7MDT
 true posix/Mexico/BajaNorte
 false posix/Mexico/BajaSur
 false posix/Mexico/General
-false posix/NZ
-false posix/NZ-CHAT
+true posix/NZ
+true posix/NZ-CHAT
 true posix/Navajo
 false posix/PRC
 true posix/PST8PDT
 false posix/Pacific/Apia
-false posix/Pacific/Auckland
+true posix/Pacific/Auckland
 false posix/Pacific/Bougainville
-false posix/Pacific/Chatham
+true posix/Pacific/Chatham
 false posix/Pacific/Chuuk
 true posix/Pacific/Easter
 false posix/Pacific/Efate
@@ -1406,7 +1406,7 @@ true posixrules
 13395||10|C|G
 13395||-9223372036854775808|U|G
 13395||10|U|G</Grants>
-      <IntrospectionStateNumber>265909</IntrospectionStateNumber>
+      <IntrospectionStateNumber>3217546</IntrospectionStateNumber>
       <ObjectId>16386</ObjectId>
       <OwnerName>postgres</OwnerName>
     </database>
@@ -1422,7 +1422,6 @@ true posixrules
 13395||10|C|G
 13395||-9223372036854775808|U|G
 13395||10|U|G</Grants>
-      <IntrospectionStateNumber>265648</IntrospectionStateNumber>
       <ObjectId>13761</ObjectId>
       <OwnerName>postgres</OwnerName>
     </database>
@@ -4847,9 +4846,9 @@ true posixrules
     <schema id="262" parent="2" name="public">
       <Comment>standard public schema</Comment>
       <Current>1</Current>
-      <IntrospectionStateNumber>265909</IntrospectionStateNumber>
-      <IntrospectionTimestamp>2023-09-22.16:49:53.421</IntrospectionTimestamp>
-      <LocalIntrospectionTimestamp>2023-09-22.19:49:53</LocalIntrospectionTimestamp>
+      <IntrospectionStateNumber>3217546</IntrospectionStateNumber>
+      <IntrospectionTimestamp>2023-09-25.19:06:21.107</IntrospectionTimestamp>
+      <LocalIntrospectionTimestamp>2023-09-25.22:06:21</LocalIntrospectionTimestamp>
       <ObjectId>2200</ObjectId>
       <StateNumber>526</StateNumber>
       <OwnerName>postgres</OwnerName>
@@ -8227,28 +8226,36 @@ true posixrules
     <sequence id="508" parent="262" name="clean_metadata_id_seq">
       <DasType>integer|0s</DasType>
       <ObjectId>539824</ObjectId>
-      <SequenceIdentity>1(103760)</SequenceIdentity>
+      <SequenceIdentity>1(622550)</SequenceIdentity>
       <StartValue>1</StartValue>
       <StateNumber>105533</StateNumber>
       <OwnerName>postgres</OwnerName>
     </sequence>
-    <sequence id="509" parent="262" name="clean_metadata_tokens_table_id_seq">
+    <sequence id="509" parent="262" name="clean_metadata_tokens_id_seq">
       <DasType>integer|0s</DasType>
-      <ObjectId>1471467</ObjectId>
-      <SequenceIdentity>1(25883149)</SequenceIdentity>
+      <ObjectId>2287925</ObjectId>
+      <SequenceIdentity>1(1531833)</SequenceIdentity>
       <StartValue>1</StartValue>
-      <StateNumber>105812</StateNumber>
+      <StateNumber>1797994</StateNumber>
       <OwnerName>postgres</OwnerName>
     </sequence>
-    <sequence id="510" parent="262" name="clean_tokenized_metadata_id_seq">
+    <sequence id="510" parent="262" name="embeddings_id_seq">
       <DasType>integer|0s</DasType>
-      <ObjectId>691119</ObjectId>
-      <SequenceIdentity>1(103760)</SequenceIdentity>
+      <ObjectId>2294718</ObjectId>
+      <SequenceIdentity>1(776081)</SequenceIdentity>
       <StartValue>1</StartValue>
-      <StateNumber>105536</StateNumber>
+      <StateNumber>1660439</StateNumber>
       <OwnerName>postgres</OwnerName>
     </sequence>
-    <sequence id="511" parent="262" name="metadata_id_seq">
+    <sequence id="511" parent="262" name="errors_id_seq">
+      <DasType>integer|0s</DasType>
+      <ObjectId>2310631</ObjectId>
+      <SequenceIdentity>1(31)</SequenceIdentity>
+      <StartValue>1</StartValue>
+      <StateNumber>1779516</StateNumber>
+      <OwnerName>postgres</OwnerName>
+    </sequence>
+    <sequence id="512" parent="262" name="metadata_id_seq">
       <DasType>integer|0s</DasType>
       <ObjectId>1503243</ObjectId>
       <SequenceIdentity>1(104711)</SequenceIdentity>
@@ -8256,43 +8263,43 @@ true posixrules
       <StateNumber>265893</StateNumber>
       <OwnerName>postgres</OwnerName>
     </sequence>
-    <table id="512" parent="262" name="clean_metadata">
+    <table id="513" parent="262" name="clean_metadata">
       <ObjectId>539825</ObjectId>
-      <StateNumber>265908</StateNumber>
+      <StateNumber>265926</StateNumber>
       <AccessMethodId>2</AccessMethodId>
       <OwnerName>postgres</OwnerName>
     </table>
-    <table id="513" parent="262" name="clean_metadata_tokens">
-      <ObjectId>1471468</ObjectId>
-      <StateNumber>107111</StateNumber>
+    <table id="514" parent="262" name="clean_metadata_tokens">
+      <ObjectId>2287926</ObjectId>
+      <StateNumber>265926</StateNumber>
       <AccessMethodId>2</AccessMethodId>
       <OwnerName>postgres</OwnerName>
     </table>
-    <table id="514" parent="262" name="clean_tokenized_metadata">
-      <ObjectId>691120</ObjectId>
-      <StateNumber>105536</StateNumber>
+    <table id="515" parent="262" name="embeddings">
+      <ObjectId>2294719</ObjectId>
+      <StateNumber>3207086</StateNumber>
       <AccessMethodId>2</AccessMethodId>
       <OwnerName>postgres</OwnerName>
     </table>
-    <table id="515" parent="262" name="metadata">
+    <table id="516" parent="262" name="errors">
+      <ObjectId>2310632</ObjectId>
+      <StateNumber>1779523</StateNumber>
+      <AccessMethodId>2</AccessMethodId>
+      <OwnerName>postgres</OwnerName>
+    </table>
+    <table id="517" parent="262" name="metadata">
       <ObjectId>16387</ObjectId>
       <StateNumber>265893</StateNumber>
       <AccessMethodId>2</AccessMethodId>
       <OwnerName>postgres</OwnerName>
     </table>
-    <table id="516" parent="262" name="tokens">
-      <ObjectId>835911</ObjectId>
-      <StateNumber>105556</StateNumber>
-      <AccessMethodId>2</AccessMethodId>
-      <OwnerName>postgres</OwnerName>
-    </table>
-    <table id="517" parent="262" name="webpages">
+    <table id="518" parent="262" name="webpages">
       <ObjectId>16399</ObjectId>
       <StateNumber>763</StateNumber>
       <AccessMethodId>2</AccessMethodId>
       <OwnerName>postgres</OwnerName>
     </table>
-    <column id="518" parent="512" name="id">
+    <column id="519" parent="513" name="id">
       <DasType>integer|0s</DasType>
       <DefaultExpression>nextval(&apos;clean_metadata_id_seq&apos;::regclass)</DefaultExpression>
       <NotNull>1</NotNull>
@@ -8301,97 +8308,97 @@ true posixrules
       <SequenceId>539824</SequenceId>
       <TypeId>23</TypeId>
     </column>
-    <column id="519" parent="512" name="url">
+    <column id="520" parent="513" name="url">
       <DasType>text|0s</DasType>
       <Position>2</Position>
       <StateNumber>105533</StateNumber>
       <TypeId>25</TypeId>
     </column>
-    <column id="520" parent="512" name="doi">
+    <column id="521" parent="513" name="doi">
       <DasType>text|0s</DasType>
       <Position>3</Position>
       <StateNumber>105533</StateNumber>
       <TypeId>25</TypeId>
     </column>
-    <column id="521" parent="512" name="type">
+    <column id="522" parent="513" name="type">
       <DasType>text|0s</DasType>
       <Position>4</Position>
       <StateNumber>105533</StateNumber>
       <TypeId>25</TypeId>
     </column>
-    <column id="522" parent="512" name="author">
+    <column id="523" parent="513" name="author">
       <DasType>text|0s</DasType>
       <Position>5</Position>
       <StateNumber>105533</StateNumber>
       <TypeId>25</TypeId>
     </column>
-    <column id="523" parent="512" name="institute">
+    <column id="524" parent="513" name="institute">
       <DasType>text|0s</DasType>
       <Position>6</Position>
       <StateNumber>105533</StateNumber>
       <TypeId>25</TypeId>
     </column>
-    <column id="524" parent="512" name="knowledge_area">
+    <column id="525" parent="513" name="knowledge_area">
       <DasType>text|0s</DasType>
       <Position>7</Position>
       <StateNumber>105533</StateNumber>
       <TypeId>25</TypeId>
     </column>
-    <column id="525" parent="512" name="committee">
+    <column id="526" parent="513" name="committee">
       <DasType>text|0s</DasType>
       <Position>8</Position>
       <StateNumber>105533</StateNumber>
       <TypeId>25</TypeId>
     </column>
-    <column id="526" parent="512" name="title_pt">
+    <column id="527" parent="513" name="title_pt">
       <DasType>text|0s</DasType>
       <Position>9</Position>
       <StateNumber>105533</StateNumber>
       <TypeId>25</TypeId>
     </column>
-    <column id="527" parent="512" name="title_en">
+    <column id="528" parent="513" name="title_en">
       <DasType>text|0s</DasType>
       <Position>10</Position>
       <StateNumber>105533</StateNumber>
       <TypeId>25</TypeId>
     </column>
-    <column id="528" parent="512" name="keywords_pt">
+    <column id="529" parent="513" name="keywords_pt">
       <DasType>text|0s</DasType>
       <Position>11</Position>
       <StateNumber>105533</StateNumber>
       <TypeId>25</TypeId>
     </column>
-    <column id="529" parent="512" name="keywords_en">
+    <column id="530" parent="513" name="keywords_en">
       <DasType>text|0s</DasType>
       <Position>12</Position>
       <StateNumber>105533</StateNumber>
       <TypeId>25</TypeId>
     </column>
-    <column id="530" parent="512" name="abstract_pt">
+    <column id="531" parent="513" name="abstract_pt">
       <DasType>text|0s</DasType>
       <Position>13</Position>
       <StateNumber>105533</StateNumber>
       <TypeId>25</TypeId>
     </column>
-    <column id="531" parent="512" name="abstract_en">
+    <column id="532" parent="513" name="abstract_en">
       <DasType>text|0s</DasType>
       <Position>14</Position>
       <StateNumber>105533</StateNumber>
       <TypeId>25</TypeId>
     </column>
-    <column id="532" parent="512" name="publish_date">
+    <column id="533" parent="513" name="publish_date">
       <DasType>text|0s</DasType>
       <Position>15</Position>
       <StateNumber>105533</StateNumber>
       <TypeId>25</TypeId>
     </column>
-    <column id="533" parent="512" name="metadata_id">
+    <column id="534" parent="513" name="metadata_id">
       <DasType>integer|0s</DasType>
       <Position>16</Position>
       <StateNumber>265908</StateNumber>
       <TypeId>23</TypeId>
     </column>
-    <index id="534" parent="512" name="clean_metadata_pkey">
+    <index id="535" parent="513" name="clean_metadata_pkey">
       <ColNames>id</ColNames>
       <NameSurrogate>1</NameSurrogate>
       <ObjectId>539831</ObjectId>
@@ -8400,265 +8407,295 @@ true posixrules
       <Unique>1</Unique>
       <AccessMethodId>403</AccessMethodId>
     </index>
-    <key id="535" parent="512" name="clean_metadata_pkey">
+    <index id="536" parent="513" name="metadata_id_unique">
+      <ColNames>metadata_id</ColNames>
+      <ObjectId>1831569</ObjectId>
+      <StateNumber>265911</StateNumber>
+      <Unique>1</Unique>
+      <AccessMethodId>403</AccessMethodId>
+    </index>
+    <key id="537" parent="513" name="clean_metadata_pkey">
       <NameSurrogate>1</NameSurrogate>
       <ObjectId>539832</ObjectId>
       <Primary>1</Primary>
       <StateNumber>105533</StateNumber>
       <UnderlyingIndexId>539831</UnderlyingIndexId>
     </key>
-    <column id="536" parent="513" name="id">
+    <key id="538" parent="513" name="metadata_id_unique">
+      <ObjectId>1831570</ObjectId>
+      <StateNumber>265911</StateNumber>
+      <UnderlyingIndexId>1831569</UnderlyingIndexId>
+    </key>
+    <column id="539" parent="514" name="id">
       <DasType>integer|0s</DasType>
-      <DefaultExpression>nextval(&apos;clean_metadata_tokens_table_id_seq&apos;::regclass)</DefaultExpression>
+      <DefaultExpression>nextval(&apos;clean_metadata_tokens_id_seq&apos;::regclass)</DefaultExpression>
       <NotNull>1</NotNull>
       <Position>1</Position>
-      <StateNumber>265896</StateNumber>
-      <SequenceId>1471467</SequenceId>
+      <StateNumber>265925</StateNumber>
+      <SequenceId>2287925</SequenceId>
       <TypeId>23</TypeId>
     </column>
-    <column id="537" parent="513" name="clean_metadata_id">
+    <column id="540" parent="514" name="clean_metadata_id">
       <DasType>integer|0s</DasType>
       <NotNull>1</NotNull>
       <Position>2</Position>
-      <StateNumber>105812</StateNumber>
+      <StateNumber>265925</StateNumber>
       <TypeId>23</TypeId>
     </column>
-    <column id="538" parent="513" name="token">
-      <DasType>varchar|0s</DasType>
-      <NotNull>1</NotNull>
+    <column id="541" parent="514" name="token">
+      <DasType>text|0s</DasType>
       <Position>3</Position>
-      <StateNumber>105812</StateNumber>
-      <TypeId>1043</TypeId>
+      <StateNumber>265925</StateNumber>
+      <TypeId>25</TypeId>
     </column>
-    <column id="539" parent="513" name="token_type">
-      <DasType>varchar|0s</DasType>
-      <NotNull>1</NotNull>
+    <column id="542" parent="514" name="token_type">
+      <DasType>text|0s</DasType>
       <Position>4</Position>
-      <StateNumber>105812</StateNumber>
-      <TypeId>1043</TypeId>
+      <StateNumber>265925</StateNumber>
+      <TypeId>25</TypeId>
     </column>
-    <column id="540" parent="513" name="language">
-      <DasType>varchar|0s</DasType>
-      <NotNull>1</NotNull>
+    <column id="543" parent="514" name="language">
+      <DasType>text|0s</DasType>
       <Position>5</Position>
-      <StateNumber>105812</StateNumber>
-      <TypeId>1043</TypeId>
+      <StateNumber>265925</StateNumber>
+      <TypeId>25</TypeId>
     </column>
-    <column id="541" parent="513" name="unique_hash">
+    <column id="544" parent="514" name="unique_hash">
       <DasType>varchar(32)|0s</DasType>
+      <NotNull>1</NotNull>
       <Position>6</Position>
-      <StateNumber>107111</StateNumber>
+      <StateNumber>265925</StateNumber>
       <TypeId>1043</TypeId>
     </column>
-    <foreign-key id="542" parent="513" name="clean_metadata_tokens_clean_metadata_id_fkey">
+    <foreign-key id="545" parent="514" name="fk_clean_metadata">
       <ColNames>clean_metadata_id</ColNames>
-      <NameSurrogate>1</NameSurrogate>
-      <ObjectId>1471478</ObjectId>
-      <StateNumber>105812</StateNumber>
+      <ObjectId>2287934</ObjectId>
+      <StateNumber>265926</StateNumber>
       <RefKeyColPositions>1</RefKeyColPositions>
       <RefTableId>539825</RefTableId>
     </foreign-key>
-    <index id="543" parent="513" name="clean_metadata_tokens_pkey">
+    <index id="546" parent="514" name="clean_metadata_tokens_pkey">
       <ColNames>id</ColNames>
       <NameSurrogate>1</NameSurrogate>
-      <ObjectId>1471474</ObjectId>
+      <ObjectId>2287932</ObjectId>
       <Primary>1</Primary>
-      <StateNumber>105812</StateNumber>
+      <StateNumber>265925</StateNumber>
       <Unique>1</Unique>
       <AccessMethodId>403</AccessMethodId>
     </index>
-    <index id="544" parent="513" name="unique_hash_key">
+    <index id="547" parent="514" name="unique_hash_unique">
       <ColNames>unique_hash</ColNames>
-      <ObjectId>1471487</ObjectId>
-      <StateNumber>107112</StateNumber>
+      <ObjectId>2287939</ObjectId>
+      <StateNumber>265927</StateNumber>
       <Unique>1</Unique>
       <AccessMethodId>403</AccessMethodId>
       <CollationNames>default</CollationNames>
       <CollationIds>100</CollationIds>
       <CollationParentNames>pg_catalog</CollationParentNames>
     </index>
-    <key id="545" parent="513" name="clean_metadata_tokens_pkey">
+    <key id="548" parent="514" name="clean_metadata_tokens_pkey">
       <NameSurrogate>1</NameSurrogate>
-      <ObjectId>1471475</ObjectId>
+      <ObjectId>2287933</ObjectId>
       <Primary>1</Primary>
-      <StateNumber>105812</StateNumber>
-      <UnderlyingIndexColNames>id</UnderlyingIndexColNames>
+      <StateNumber>265925</StateNumber>
+      <UnderlyingIndexId>2287932</UnderlyingIndexId>
     </key>
-    <key id="546" parent="513" name="unique_hash_key">
-      <ObjectId>1471488</ObjectId>
-      <StateNumber>107112</StateNumber>
-      <UnderlyingIndexId>1471487</UnderlyingIndexId>
+    <key id="549" parent="514" name="unique_hash_unique">
+      <ObjectId>2287940</ObjectId>
+      <StateNumber>265927</StateNumber>
+      <UnderlyingIndexId>2287939</UnderlyingIndexId>
     </key>
-    <column id="547" parent="514" name="id">
+    <column id="550" parent="515" name="id">
       <DasType>integer|0s</DasType>
-      <DefaultExpression>nextval(&apos;clean_tokenized_metadata_id_seq&apos;::regclass)</DefaultExpression>
+      <DefaultExpression>nextval(&apos;embeddings_id_seq&apos;::regclass)</DefaultExpression>
       <NotNull>1</NotNull>
       <Position>1</Position>
-      <StateNumber>105536</StateNumber>
-      <SequenceId>691119</SequenceId>
+      <StateNumber>1660439</StateNumber>
+      <SequenceId>2294718</SequenceId>
       <TypeId>23</TypeId>
     </column>
-    <column id="548" parent="514" name="metadata_url">
-      <DasType>text|0s</DasType>
+    <column id="551" parent="515" name="token_id">
+      <DasType>integer|0s</DasType>
       <Position>2</Position>
-      <StateNumber>105536</StateNumber>
+      <StateNumber>1660439</StateNumber>
+      <TypeId>23</TypeId>
+    </column>
+    <column id="552" parent="515" name="embeddings">
+      <DasType>double precision[]|0s</DasType>
+      <NotNull>1</NotNull>
+      <Position>3</Position>
+      <StateNumber>1660439</StateNumber>
+      <TypeId>1022</TypeId>
+    </column>
+    <column id="553" parent="515" name="model_name">
+      <DasType>text|0s</DasType>
+      <Position>4</Position>
+      <StateNumber>3207093</StateNumber>
       <TypeId>25</TypeId>
     </column>
-    <column id="549" parent="514" name="keywords_tokens_pt">
-      <DasType>text[]|0s</DasType>
-      <Position>3</Position>
-      <StateNumber>105536</StateNumber>
-      <TypeId>1009</TypeId>
-    </column>
-    <column id="550" parent="514" name="keywords_tokens_en">
-      <DasType>text[]|0s</DasType>
-      <Position>4</Position>
-      <StateNumber>105536</StateNumber>
-      <TypeId>1009</TypeId>
-    </column>
-    <column id="551" parent="514" name="abstract_tokens_pt">
-      <DasType>text[]|0s</DasType>
-      <Position>5</Position>
-      <StateNumber>105536</StateNumber>
-      <TypeId>1009</TypeId>
-    </column>
-    <column id="552" parent="514" name="abstract_tokens_en">
-      <DasType>text[]|0s</DasType>
-      <Position>6</Position>
-      <StateNumber>105536</StateNumber>
-      <TypeId>1009</TypeId>
-    </column>
-    <column id="553" parent="514" name="title_tokens_pt">
-      <DasType>text[]|0s</DasType>
-      <Position>7</Position>
-      <StateNumber>105536</StateNumber>
-      <TypeId>1009</TypeId>
-    </column>
-    <column id="554" parent="514" name="title_tokens_en">
-      <DasType>text[]|0s</DasType>
-      <Position>8</Position>
-      <StateNumber>105536</StateNumber>
-      <TypeId>1009</TypeId>
-    </column>
-    <index id="555" parent="514" name="clean_tokenized_metadata_pkey">
+    <foreign-key id="554" parent="515" name="embeddings_token_id_fkey">
+      <ColNames>token_id</ColNames>
+      <NameSurrogate>1</NameSurrogate>
+      <ObjectId>2294729</ObjectId>
+      <StateNumber>1660439</StateNumber>
+      <RefKeyColPositions>1</RefKeyColPositions>
+      <RefTableId>2287926</RefTableId>
+    </foreign-key>
+    <index id="555" parent="515" name="embeddings_pkey">
       <ColNames>id</ColNames>
       <NameSurrogate>1</NameSurrogate>
-      <ObjectId>691126</ObjectId>
+      <ObjectId>2294725</ObjectId>
       <Primary>1</Primary>
-      <StateNumber>105536</StateNumber>
+      <StateNumber>1660439</StateNumber>
       <Unique>1</Unique>
       <AccessMethodId>403</AccessMethodId>
     </index>
-    <index id="556" parent="514" name="clean_tokenized_metadata_metadata_url_key">
-      <ColNames>metadata_url</ColNames>
-      <NameSurrogate>1</NameSurrogate>
-      <ObjectId>691128</ObjectId>
-      <StateNumber>105538</StateNumber>
+    <index id="556" parent="515" name="embeddings_token_id_model_name_key">
+      <ColNames>model_name
+token_id</ColNames>
+      <ObjectId>2719123</ObjectId>
+      <StateNumber>3212548</StateNumber>
       <Unique>1</Unique>
       <AccessMethodId>403</AccessMethodId>
       <CollationNames>default</CollationNames>
       <CollationIds>100</CollationIds>
       <CollationParentNames>pg_catalog</CollationParentNames>
     </index>
-    <key id="557" parent="514" name="clean_tokenized_metadata_pkey">
+    <key id="557" parent="515" name="embeddings_pkey">
       <NameSurrogate>1</NameSurrogate>
-      <ObjectId>691127</ObjectId>
+      <ObjectId>2294726</ObjectId>
       <Primary>1</Primary>
-      <StateNumber>105536</StateNumber>
-      <UnderlyingIndexId>691126</UnderlyingIndexId>
+      <StateNumber>1660439</StateNumber>
+      <UnderlyingIndexId>2294725</UnderlyingIndexId>
     </key>
-    <key id="558" parent="514" name="clean_tokenized_metadata_metadata_url_key">
+    <key id="558" parent="515" name="embeddings_token_id_model_name_key">
+      <ObjectId>2719124</ObjectId>
+      <StateNumber>3212548</StateNumber>
+      <UnderlyingIndexId>2719123</UnderlyingIndexId>
+    </key>
+    <column id="559" parent="516" name="id">
+      <DasType>integer|0s</DasType>
+      <DefaultExpression>nextval(&apos;errors_id_seq&apos;::regclass)</DefaultExpression>
+      <NotNull>1</NotNull>
+      <Position>1</Position>
+      <StateNumber>1779516</StateNumber>
+      <SequenceId>2310631</SequenceId>
+      <TypeId>23</TypeId>
+    </column>
+    <column id="560" parent="516" name="message">
+      <DasType>text|0s</DasType>
+      <Position>2</Position>
+      <StateNumber>1779516</StateNumber>
+      <TypeId>25</TypeId>
+    </column>
+    <column id="561" parent="516" name="timestamptz">
+      <DasType>timestamp with time zone|0s</DasType>
+      <Position>5</Position>
+      <StateNumber>1779523</StateNumber>
+      <TypeId>1184</TypeId>
+    </column>
+    <index id="562" parent="516" name="errors_pkey">
+      <ColNames>id</ColNames>
       <NameSurrogate>1</NameSurrogate>
-      <ObjectId>691129</ObjectId>
-      <StateNumber>105538</StateNumber>
-      <UnderlyingIndexId>691128</UnderlyingIndexId>
+      <ObjectId>2310638</ObjectId>
+      <Primary>1</Primary>
+      <StateNumber>1779516</StateNumber>
+      <Unique>1</Unique>
+      <AccessMethodId>403</AccessMethodId>
+    </index>
+    <key id="563" parent="516" name="errors_pkey">
+      <NameSurrogate>1</NameSurrogate>
+      <ObjectId>2310639</ObjectId>
+      <Primary>1</Primary>
+      <StateNumber>1779516</StateNumber>
+      <UnderlyingIndexId>2310638</UnderlyingIndexId>
     </key>
-    <column id="559" parent="515" name="url">
+    <column id="564" parent="517" name="url">
       <DasType>text|0s</DasType>
       <NotNull>1</NotNull>
       <Position>1</Position>
       <StateNumber>738</StateNumber>
       <TypeId>25</TypeId>
     </column>
-    <column id="560" parent="515" name="doi">
+    <column id="565" parent="517" name="doi">
       <DasType>text|0s</DasType>
       <Position>2</Position>
       <StateNumber>738</StateNumber>
       <TypeId>25</TypeId>
     </column>
-    <column id="561" parent="515" name="type">
+    <column id="566" parent="517" name="type">
       <DasType>text|0s</DasType>
       <Position>3</Position>
       <StateNumber>738</StateNumber>
       <TypeId>25</TypeId>
     </column>
-    <column id="562" parent="515" name="author">
+    <column id="567" parent="517" name="author">
       <DasType>text|0s</DasType>
       <Position>4</Position>
       <StateNumber>738</StateNumber>
       <TypeId>25</TypeId>
     </column>
-    <column id="563" parent="515" name="institute">
+    <column id="568" parent="517" name="institute">
       <DasType>text|0s</DasType>
       <Position>5</Position>
       <StateNumber>738</StateNumber>
       <TypeId>25</TypeId>
     </column>
-    <column id="564" parent="515" name="knowledge_area">
+    <column id="569" parent="517" name="knowledge_area">
       <DasType>text|0s</DasType>
       <Position>6</Position>
       <StateNumber>738</StateNumber>
       <TypeId>25</TypeId>
     </column>
-    <column id="565" parent="515" name="committee">
+    <column id="570" parent="517" name="committee">
       <DasType>text|0s</DasType>
       <Position>7</Position>
       <StateNumber>738</StateNumber>
       <TypeId>25</TypeId>
     </column>
-    <column id="566" parent="515" name="title_pt">
+    <column id="571" parent="517" name="title_pt">
       <DasType>text|0s</DasType>
       <Position>8</Position>
       <StateNumber>738</StateNumber>
       <TypeId>25</TypeId>
     </column>
-    <column id="567" parent="515" name="title_en">
+    <column id="572" parent="517" name="title_en">
       <DasType>text|0s</DasType>
       <Position>9</Position>
       <StateNumber>738</StateNumber>
       <TypeId>25</TypeId>
     </column>
-    <column id="568" parent="515" name="keywords_pt">
+    <column id="573" parent="517" name="keywords_pt">
       <DasType>text|0s</DasType>
       <Position>10</Position>
       <StateNumber>738</StateNumber>
       <TypeId>25</TypeId>
     </column>
-    <column id="569" parent="515" name="keywords_en">
+    <column id="574" parent="517" name="keywords_en">
       <DasType>text|0s</DasType>
       <Position>11</Position>
       <StateNumber>738</StateNumber>
       <TypeId>25</TypeId>
     </column>
-    <column id="570" parent="515" name="abstract_pt">
+    <column id="575" parent="517" name="abstract_pt">
       <DasType>text|0s</DasType>
       <Position>12</Position>
       <StateNumber>738</StateNumber>
       <TypeId>25</TypeId>
     </column>
-    <column id="571" parent="515" name="abstract_en">
+    <column id="576" parent="517" name="abstract_en">
       <DasType>text|0s</DasType>
       <Position>13</Position>
       <StateNumber>738</StateNumber>
       <TypeId>25</TypeId>
     </column>
-    <column id="572" parent="515" name="publish_date">
+    <column id="577" parent="517" name="publish_date">
       <DasType>text|0s</DasType>
       <Position>14</Position>
       <StateNumber>738</StateNumber>
       <TypeId>25</TypeId>
     </column>
-    <column id="573" parent="515" name="id">
+    <column id="578" parent="517" name="id">
       <DasType>integer|0s</DasType>
       <DefaultExpression>nextval(&apos;metadata_id_seq&apos;::regclass)</DefaultExpression>
       <NotNull>1</NotNull>
@@ -8667,7 +8704,7 @@ true posixrules
       <SequenceId>1503243</SequenceId>
       <TypeId>23</TypeId>
     </column>
-    <index id="574" parent="515" name="url_unique">
+    <index id="579" parent="517" name="url_unique">
       <ColNames>url</ColNames>
       <ObjectId>1503241</ObjectId>
       <StateNumber>265893</StateNumber>
@@ -8677,7 +8714,7 @@ true posixrules
       <CollationIds>100</CollationIds>
       <CollationParentNames>pg_catalog</CollationParentNames>
     </index>
-    <index id="575" parent="515" name="metadata_doi_key">
+    <index id="580" parent="517" name="metadata_doi_key">
       <ColNames>doi</ColNames>
       <NameSurrogate>1</NameSurrogate>
       <ObjectId>16394</ObjectId>
@@ -8688,7 +8725,7 @@ true posixrules
       <CollationIds>100</CollationIds>
       <CollationParentNames>pg_catalog</CollationParentNames>
     </index>
-    <index id="576" parent="515" name="metadata_pkey">
+    <index id="581" parent="517" name="metadata_pkey">
       <ColNames>id</ColNames>
       <NameSurrogate>1</NameSurrogate>
       <ObjectId>1503245</ObjectId>
@@ -8697,77 +8734,32 @@ true posixrules
       <Unique>1</Unique>
       <AccessMethodId>403</AccessMethodId>
     </index>
-    <key id="577" parent="515" name="metadata_pkey">
+    <key id="582" parent="517" name="metadata_pkey">
       <NameSurrogate>1</NameSurrogate>
       <ObjectId>1503246</ObjectId>
       <Primary>1</Primary>
       <StateNumber>265893</StateNumber>
       <UnderlyingIndexId>1503245</UnderlyingIndexId>
     </key>
-    <key id="578" parent="515" name="url_unique">
+    <key id="583" parent="517" name="url_unique">
       <ObjectId>1503242</ObjectId>
       <StateNumber>265892</StateNumber>
       <UnderlyingIndexId>1503241</UnderlyingIndexId>
     </key>
-    <key id="579" parent="515" name="metadata_doi_key">
+    <key id="584" parent="517" name="metadata_doi_key">
       <NameSurrogate>1</NameSurrogate>
       <ObjectId>16395</ObjectId>
       <StateNumber>738</StateNumber>
       <UnderlyingIndexId>16394</UnderlyingIndexId>
     </key>
-    <column id="580" parent="516" name="tokens">
-      <DasType>text[]|0s</DasType>
-      <Position>1</Position>
-      <StateNumber>105551</StateNumber>
-      <TypeId>1009</TypeId>
-    </column>
-    <column id="581" parent="516" name="clean_metadata_id">
-      <DasType>integer|0s</DasType>
-      <NotNull>1</NotNull>
-      <Position>4</Position>
-      <StateNumber>105547</StateNumber>
-      <TypeId>23</TypeId>
-    </column>
-    <column id="582" parent="516" name="token_type">
-      <DasType>varchar|0s</DasType>
-      <NotNull>1</NotNull>
-      <Position>5</Position>
-      <StateNumber>105559</StateNumber>
-      <TypeId>1043</TypeId>
-    </column>
-    <foreign-key id="583" parent="516" name="clean_metadata_id">
-      <ColNames>clean_metadata_id</ColNames>
-      <ObjectId>835916</ObjectId>
-      <StateNumber>105547</StateNumber>
-      <RefKeyColPositions>1</RefKeyColPositions>
-      <RefTableId>539825</RefTableId>
-    </foreign-key>
-    <index id="584" parent="516" name="tokens_pk">
-      <ColNames>token_type
-clean_metadata_id</ColNames>
-      <ObjectId>835921</ObjectId>
-      <Primary>1</Primary>
-      <StateNumber>105559</StateNumber>
-      <Unique>1</Unique>
-      <AccessMethodId>403</AccessMethodId>
-      <CollationNames>default</CollationNames>
-      <CollationIds>100</CollationIds>
-      <CollationParentNames>pg_catalog</CollationParentNames>
-    </index>
-    <key id="585" parent="516" name="tokens_pk">
-      <ObjectId>835922</ObjectId>
-      <Primary>1</Primary>
-      <StateNumber>105559</StateNumber>
-      <UnderlyingIndexId>835921</UnderlyingIndexId>
-    </key>
-    <column id="586" parent="517" name="url">
+    <column id="585" parent="518" name="url">
       <DasType>text|0s</DasType>
       <NotNull>1</NotNull>
       <Position>1</Position>
       <StateNumber>740</StateNumber>
       <TypeId>25</TypeId>
     </column>
-    <column id="587" parent="517" name="is_metadata">
+    <column id="586" parent="518" name="is_metadata">
       <DasType>boolean|0s</DasType>
       <DefaultExpression>false</DefaultExpression>
       <NotNull>1</NotNull>
@@ -8775,7 +8767,7 @@ clean_metadata_id</ColNames>
       <StateNumber>740</StateNumber>
       <TypeId>16</TypeId>
     </column>
-    <column id="588" parent="517" name="is_document">
+    <column id="587" parent="518" name="is_document">
       <DasType>boolean|0s</DasType>
       <DefaultExpression>false</DefaultExpression>
       <NotNull>1</NotNull>
@@ -8783,7 +8775,7 @@ clean_metadata_id</ColNames>
       <StateNumber>740</StateNumber>
       <TypeId>16</TypeId>
     </column>
-    <column id="589" parent="517" name="is_crawled">
+    <column id="588" parent="518" name="is_crawled">
       <DasType>boolean|0s</DasType>
       <DefaultExpression>false</DefaultExpression>
       <NotNull>1</NotNull>
@@ -8791,7 +8783,7 @@ clean_metadata_id</ColNames>
       <StateNumber>740</StateNumber>
       <TypeId>16</TypeId>
     </column>
-    <index id="590" parent="517" name="webpages_pkey">
+    <index id="589" parent="518" name="webpages_pkey">
       <ColNames>url</ColNames>
       <NameSurrogate>1</NameSurrogate>
       <ObjectId>16407</ObjectId>
@@ -8803,7 +8795,7 @@ clean_metadata_id</ColNames>
       <CollationIds>100</CollationIds>
       <CollationParentNames>pg_catalog</CollationParentNames>
     </index>
-    <key id="591" parent="517" name="webpages_pkey">
+    <key id="590" parent="518" name="webpages_pkey">
       <NameSurrogate>1</NameSurrogate>
       <ObjectId>16408</ObjectId>
       <Primary>1</Primary>

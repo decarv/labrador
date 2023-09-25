@@ -17,9 +17,13 @@ limitations under the License.
 """
 from psycopg2.extras import RealDictCursor
 
-import utils
-from utils import log
-import tokenizer
+import util.database
+from util import utils
+from index import tokenizer
+from util import log
+
+logger = log.configure_logger(__file__)
+log = log.log(logger)
 
 
 class Indexer:
@@ -36,7 +40,7 @@ class Indexer:
         query = "SELECT clean_metadata_id, tokens FROM tokens WHERE token_type = %s ORDER BY clean_metadata_id;"
         indices_map = []
         token_indices_map = []
-        with utils.db_get_conn() as conn:
+        with util.database.connection() as conn:
             with conn.cursor(cursor_factory=RealDictCursor) as cursor:
                 cursor.execute(query, (self.token_type,))
                 instances = cursor.fetchall()

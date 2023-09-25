@@ -15,24 +15,34 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 """
-import json
-import re
-import asyncpg
-import asyncio
-import pandas as pd
-import psycopg2.extras
 
-import utils
+import re
+import json
+import asyncio
+
+import asyncpg
+import pandas as pd
+
+from util import log
 import config
 
-logger = utils.configure_logger(__name__)
-log = utils.log(logger)
+logger = log.configure_logger(__file__)
+log = log.log(logger)
 
 
 class Processor:
     """
     Processing component for text.
     Encompass text processing steps, such as standardization & cleaning.
+
+    Notes for paper:
+        Problems that I had to solve:
+            (a) unwanted strings such as "Não disponível";
+            (b) abstracts, titles and keywords empty strings;
+            (c) duplicate abstracts, titles and keywords;
+            (d) non-uniform way to list keywords (separated by ';' or '-' or all in lower-case);
+
+    TODO: Implement stemming and lemmatization.
     """
     def __init__(self):
         pass
@@ -59,14 +69,7 @@ class Processor:
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, to_date($14, 'YYYY-MM-DD'), $15)
             ON CONFLICT (metadata_id)
             DO UPDATE SET 
-                title_pt = EXCLUDED.title_pt, 
-                abstract_pt = EXCLUDED.abstract_pt, 
-                keywords_pt = EXCLUDED.keywords_pt, 
-                title_en = EXCLUDED.title_en, 
-                abstract_en = EXCLUDED.abstract_en, 
-                keywords_en = EXCLUDED.keywords_en,
-                publish_date = EXCLUDED.publish_date,
-                metadata_id = EXCLUDED.metadata_id;
+                keywords_pt = EXCLUDED.keywords_pt;
         """
 
         pool = await asyncpg.create_pool(
@@ -141,8 +144,8 @@ class Processor:
             - improve bi-words recognition. e.g. "São Paulo" is currently split with a semicolon
         """
 
-        masked_text: str = utils.mask_problematic_punctuation(text)
-        split_text: list[str] = re.split(r"([;.,])", masked_text)
+        masked_text: str = Processor.mask_problematic_punctuation(text)
+        split_text: list[str] = re.split(r"[;.,-]", masked_text)
         if len(split_text) == 1:
             split_text = split_text[0].split(" ")
             keywords: list[str] = []
@@ -160,11 +163,51 @@ class Processor:
         else:
             keywords: list[str] = split_text
 
-        keywords = utils.clean_string_list(keywords)
+        keywords = Processor.clean_string_list(keywords)
         masked_keywords: str = "; ".join(keywords)
-        unmasked_clean_keywords: str = utils.unmask_problematic_punctuation(masked_keywords)
+        unmasked_clean_keywords: str = Processor.unmask_problematic_punctuation(masked_keywords)
 
         return unmasked_clean_keywords
+
+    @staticmethod
+    def mask_problematic_punctuation(text: str) -> str:
+        masked_text: str = text
+        masked_text = re.sub(r"([0-9]+)\.([0-9]+)", r"\1[DOT]\2", masked_text)
+
+        # Mask dots in abbreviations
+        abbreviation_patterns = r"\b(Dr|Dra|Sr|Sra|[A-Za-z]|et al|var)\."
+        masked_text = re.sub(abbreviation_patterns, r"\1[DOT]", masked_text)
+
+        # Mask commas in compound names like 2,4,6-trinitrotoluene
+        masked_text = re.sub(
+            r"[0-9A-Za-z]+,?[0-9A-Z]*?-[a-zA-Z]+",
+            lambda x: x.group().replace(",", "[COMMA]").replace("-", "[DASH]"),
+            masked_text
+        )
+
+        return masked_text
+
+    @staticmethod
+    def unmask_problematic_punctuation(text: str) -> str:
+        """
+        Replaces masked punctuation with the original punctuation.
+        TODO:
+            - Consider not unmasking before adding to the database, since I will unmask it in the tokenizer.
+        """
+        unmasked_text: str = text.replace("[DOT]", ".")
+        unmasked_text = unmasked_text.replace("[COMMA]", ",")
+        unmasked_text = unmasked_text.replace("[DASH]", "-")
+        return unmasked_text
+
+    @staticmethod
+    def clean_string_list(strings: list[str]) -> list[str]:
+        strings = [s.strip(" -.") for s in strings]  # Remove leading and trailing whitespaces
+        strings = [s for s in strings if s != '']  # Remove empty strings
+
+        strings = [re.sub(r"\s+", " ", s) for s in strings]  # Remove multiple whitespaces
+        zero_width_pattern = r"\u00AD|\u200B|\u200D|\u200E|\u200F|\u202C|\uFEFF|\u200C|\u2060"
+        strings = [re.sub(zero_width_pattern, "", s) for s in strings]  # Remove zero-width characters
+        return strings
 
 
 if __name__ == '__main__':

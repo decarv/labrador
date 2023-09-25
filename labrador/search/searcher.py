@@ -29,17 +29,20 @@ from abc import ABC, abstractmethod
 from sentence_transformers.util import semantic_search
 
 import config
-import utils
-from utils import log
+import util.database
+import util.log
+from util import utils
+from util import log
 
-logger = utils.configure_logger(__name__)
+logger = util.log.configure_logger(__file__)
+log = log.log(logger)
 
 
 class Searcher(ABC):
     def __init__(self, *args, **kwargs):
         self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
         if self.device == 'cpu':
-            logging.warning("CUDA not available. Using CPU instead.")
+            logger.warning("CUDA not available. Using CPU instead.")
 
         self.model_name = kwargs.get('model_name')
         self.collection_name = kwargs.get('collection_name')
@@ -71,9 +74,22 @@ class Searcher(ABC):
         pass
 
 
-class LocalSearcher(Searcher):
+class KeywordSearcher(Searcher):
     def __init__(self, *args, **kwargs):
-        super(LocalSearcher, self).__init__(*args, **kwargs)
+        super(KeywordSearcher, self).__init__(*args, **kwargs)
+        self.indexer = kwargs["indexer"]
+
+
+class LocalNeuralSearcher(Searcher):
+    """
+    NeuralSearcher implemented in version 0.1.0.
+    The LocalNeuralSearcher is a searcher that uses a local infrastructure to retrieve and rank results.
+    The indices and embeddings are loaded from disk into memory.
+
+    The function used to train the model is the Encoder's current local_encode() function.
+    """
+    def __init__(self, *args, **kwargs):
+        super(LocalNeuralSearcher, self).__init__(*args, **kwargs)
 
         for attr in ["language", "token_type"]:
             if not getattr(self, attr):
@@ -277,12 +293,12 @@ if __name__ == "__main__":
     model = config.MODELS[0]
     query = "computação em nuvem"
     for model in config.MODELS:
-        ls = LocalSearcher(
+        ls = LocalNeuralSearcher(
             model_name=model,
             token_type="sentence_with_keywords",
             language="pt",
-            data=utils.db_read("clean_metadata"),
-            training_data=utils.db_read("clean_tokenized_metadata")
+            data=util.database.table_read("clean_metadata"),
+            training_data=util.database.table_read("clean_tokenized_metadata")
         )
         _hits = ls.search(query)
         ls.save(_hits)

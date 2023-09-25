@@ -1,5 +1,5 @@
 """
-models.webpage
+models
 
 Copyright 2023 Henrique de Carvalho
 
@@ -18,9 +18,9 @@ limitations under the License.
 
 import re
 import urllib
-import urllib.parse
+from typing import Optional
+
 import requests
-from typing import Optional, Any
 from bs4 import BeautifulSoup
 
 import config
@@ -126,3 +126,100 @@ class Webpage:
 
     def __repr__(self):
         return f"{self.url}"
+
+
+class Metadata:
+    class MetadataError(Exception):
+        pass
+
+    def __init__(self, webpage: Webpage = None):
+        self.url: str
+        self.doi: str
+        self.type: str
+        self.author: str
+        self.institute: str
+        self.knowledge_area: str
+        self.committee: str
+        self.title_pt: str
+        self.title_en: str
+        self.keywords_pt: str
+        self.keywords_en: str
+        self.abstract_pt: str
+        self.abstract_en: str
+        self.publish_date: str
+
+        if webpage is not None:
+            self.parse_metadata(webpage)
+
+    def __repr__(self):
+        return str(self.__dict__)
+
+    def parse_metadata(self, webpage):
+        """
+        TODO: documentation
+            - add data cleaning
+        :param webpage:
+        :return:
+        """
+        if not webpage.is_processed:
+            raise Metadata.MetadataError("Webpage must be processed before parsing metadata")
+
+        try:
+            self.url = webpage.url
+            raw_metadata = webpage.soup.find_all(class_="DocumentoTexto")
+            raw_metadata_keys = webpage.soup.find_all(class_="DocumentoTituloTexto")
+            metadata = {
+                k.text.strip().lower(): re.sub(r"\s+", " ", v.text.strip())
+                for (k, v) in zip(raw_metadata_keys, raw_metadata)
+            }
+            self.doi = metadata.get("doi", None)
+            self.type = metadata.get("documento", None)
+            self.author = metadata.get("autor", None) # TODO: add data cleaning "Catalogo USP"
+
+
+
+            self.institute = metadata.get("unidade da usp", None)
+            self.knowledge_area = metadata.get("área do conhecimento", None)
+            self.committee = metadata.get("banca examinadora", None)
+            self.title_pt = metadata.get("título em português", None)
+            self.keywords_pt = metadata.get("palavras-chave em português", None)
+            self.title_en = metadata.get("título em inglês", None)
+            self.keywords_en = metadata.get("palavras-chave em inglês", None)
+            self.publish_date = metadata.get("data de publicação", None)
+
+            raw_data = webpage.soup.find_all(class_="DocumentoTextoResumo")
+            raw_data_keys = webpage.soup.find_all(class_="DocumentoTituloTexto2")
+            data = {
+                k.text.strip().lower(): re.sub(r"\s+", " ", v.text.strip())
+                for (k, v) in zip(raw_data_keys, raw_data)
+            }
+            self.abstract_pt = data.get("resumo em português", None)
+            self.abstract_en = data.get("resumo em inglês", None)
+            return self
+        except Exception as e:
+            raise e
+
+    def parse_db_instance(self, instance):
+        """TODO: documentation"""
+        attributes = [attr for attr in dir(self) if not callable(getattr(self, attr)) and not attr.startswith("__")]
+        for inst, attr in zip(instance, attributes):
+            setattr(self, attr, inst)
+        return self
+
+    def to_dict(self):
+        """TODO: documentation
+        attributes = [attr for attr in dir(self) if not callable(getattr(self, attr)) and not attr.startswith("__")]
+            return {attr: getattr(self, attr) for attr in attributes}
+        """
+        return {
+            "title_pt": self.title_pt,
+            "title_en": self.title_en,
+            "author": self.author,
+            "abstract_pt": self.abstract_pt,
+            "abstract_en": self.abstract_en,
+            "url": self.url
+        }
+
+    def __hash__(self):
+        return hash(self.doi)
+
