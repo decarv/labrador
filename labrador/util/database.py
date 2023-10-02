@@ -262,7 +262,7 @@ def errors_insert(message: str) -> None:
 
 
 def table_read(table_name: str) -> list[RealDictRow]:
-    select_query: str = """SELECT * FROM %s ORDER BY id;"""
+    select_query: str = f"""SELECT * FROM {table_name} ORDER BY id;"""
     with psycopg2.connect(
         dbname=POSTGRESQL_DB_NAME,
         user=POSTGRESQL_DB_USER,
@@ -271,7 +271,7 @@ def table_read(table_name: str) -> list[RealDictRow]:
         port=POSTGRESQL_DB_PORT
     ) as conn:
         with conn.cursor(cursor_factory=RealDictCursor) as cursor:
-            cursor.execute(select_query, (table_name,))
+            cursor.execute(select_query)
             instances = cursor.fetchall()
     return instances
 

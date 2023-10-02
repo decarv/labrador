@@ -26,4 +26,4 @@ tmux send-keys 'nvtop' C-m
 
 
 # Attach to the tmux session
-tmux attach -t experiments
+tmux attach -t labrador
