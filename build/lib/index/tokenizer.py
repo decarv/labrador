@@ -26,10 +26,10 @@ import psycopg2
 from psycopg2.extras import RealDictRow
 
 import config
+import ingest.processor
 import util.database
 import util.log
-from ingest.processor import Processor
-from util import utils, database
+from util import utils
 
 logger = util.log.configure_logger(__file__)
 log = util.log.log(logger)
@@ -64,9 +64,10 @@ class Tokenizer:
         )
 
     @log
-    def tokenize(self, data_chunks: Iterator[list[RealDictRow]]) -> None:
+    def tokenize(self, data_chunks: Iterator[list[RealDictRow]], keep_in_memory: bool = False) -> None:
         for chunk in data_chunks:
-            self._tokenize_chunk(chunk)
+            self._tokenize_chunk(chunk, keep_in_memory)
+        # asyncio.run(self._tokenize_async(data_chunks, keep_in_memory))
 
     @log
     def _tokenize_chunk(self, chunk: list[RealDictRow], keep_in_memory=False):
@@ -83,68 +84,69 @@ class Tokenizer:
             host=config.POSTGRESQL_DB_HOST,
             port=config.POSTGRESQL_DB_PORT
         )
+
         cursor = conn.cursor()
 
         try:
             for instance in chunk:
                 ref_id = instance.get('id')
                 tokens = self._tokenizer(instance)
-                records = []
                 for token in tokens:
                     unique_str = f"{ref_id}{token}{self.token_type}{self.language}"
                     unique_hash = hashlib.md5(unique_str.encode()).hexdigest()
                     record = (ref_id, token, self.token_type, self.language, unique_hash)
-                    records.append(record)
 
-                try:
-                    cursor.executemany(insert_query, records)
-                    conn.commit()
-                except Exception as e:
-                    logger.error(f"Error inserting metadata_id {ref_id} into database: {e}")
+                    if keep_in_memory:
+                        self.tokens.append(token)
+
+                    try:
+                        logger.info(f"Inserting token id {ref_id} {unique_hash} into database")
+                        cursor.execute(insert_query, record)
+                        conn.commit()
+                        logger.info(f"Token id {ref_id} {unique_hash} inserted into database")
+                    except Exception as e:
+                        logger.error(f"Error inserting metadata_id {ref_id} into database: {e}")
         finally:
             cursor.close()
             conn.close()
 
-    @log
-    def tokenize_async(self, doc_chunks: Iterator[list[RealDictRow]]) -> None:
-        asyncio.run(self._tokenize_async(doc_chunks))
-
-    async def _tokenize_async(self, doc_chunks: Iterator[list[RealDictRow]]) -> None:
-        await asyncio.gather(*[self._tokenize_chunk_async(chunk) for chunk in doc_chunks])
+    async def _tokenize_async(self, data_chunks: Iterator[RealDictRow], keep_in_memory: bool) -> None:
+        await asyncio.gather(*[self._tokenize_chunk_async(chunk, keep_in_memory) for chunk in data_chunks])
 
     @log
-    async def _tokenize_chunk_async(self, chunk: list[RealDictRow]) -> None:
+    async def _tokenize_chunk_async(self, chunk: RealDictRow, keep_in_memory: bool) -> None:
         insert_query = """
         INSERT INTO tokens (data_id, token, token_type, language, unique_hash)
-        VALUES (%s, %s, %s, %s, %s)
+        VALUES ($1, $2, $3, $4, $5)
         ON CONFLICT (unique_hash) DO NOTHING;
         """
+        # records_to_insert: list[tuple[int, str, str, str, str]] = []
+        conn = await asyncpg.connect(
+            database=config.POSTGRESQL_DB_NAME,
+            user=config.POSTGRESQL_DB_USER,
+            password=config.POSTGRESQL_DB_PASSWORD,
+            host=config.POSTGRESQL_DB_HOST,
+            port=config.POSTGRESQL_DB_PORT
+        )
 
-        records: list[tuple[int, str, str, str, str]] = []
         for instance in chunk:
-            doc_id: int = instance.get('id')
+            ref_id: int = instance.get('id')
             tokens: list[str] = self._tokenizer(instance)
             for token in tokens:
-                unique_str = f"{doc_id}{token}{self.token_type}{self.language}"
+                unique_str = f"{ref_id}{token}{self.token_type}{self.language}"
                 unique_hash: str = hashlib.md5(unique_str.encode()).hexdigest()
-                record: tuple[int, str, str, str, str] = (doc_id, token, self.token_type,
+                record: tuple[int, str, str, str, str] = (ref_id, token, self.token_type,
                                                           self.language, unique_hash)
-                records.append(record)
-
-        conn = None
-        try:
-            conn = await database.get_async_connection()
-            async with conn.cursor() as cursor:
-                for record in records:
-                    await cursor.execute(insert_query, record)
-        except Exception as e:
-            logger.error(f"Error inserting records into database: {e}: {records[0]}")
-            logger.info(f"Error inserting records into database: {e}: {records[0]}")
-            print(f"Error inserting records into database: {e}: {records[0]}")
-            raise e
-        finally:
-            await cursor.close()
-            await conn.close()
+                # records_to_insert.append(record)
+                if keep_in_memory:
+                    self.tokens.append(token)
+                try:
+                    await conn.execute(insert_query, record)
+                except Exception as e:
+                    logger.error(f"Error inserting metadata_id {ref_id} into database: {e}")
+        # async with conn.transaction():
+        #     await conn.executemany(insert_query, records_to_insert)
+        conn.close()
 
     def tokens_generator(self) -> Iterator[list[str]]:
         raise NotImplementedError
@@ -154,20 +156,15 @@ class Tokenizer:
         return [attr[10:-7] for attr in dir(cls) if attr.startswith("_generate_") and attr.endswith("_tokens")]
 
     def _get_data_to_tokenize(self, instance: RealDictRow) -> tuple[str, str, str]:
-        try:
-            title: str = instance[f"title_{self.language}"]
-            assert title is not None
+        title: str = instance[f"title_{self.language}"]
+        assert title is not None
 
-            abstract: str = instance[f"abstract_{self.language}"]
-            assert abstract is not None
+        abstract: str = instance[f"abstract_{self.language}"]
+        assert abstract is not None
 
-            keywords: str = instance[f"keywords_{self.language}"]
-            if keywords is None:
-                keywords = ""
-        except KeyError:
-            logger.error(f"Error getting data to tokenize from instance: {instance}")
-            database.errors_insert(f"Error getting data to tokenize from instance: {instance}")
-            return "", "", ""
+        keywords: str = instance[f"keywords_{self.language}"]
+        if keywords is None:
+            keywords = ""
 
         return title, abstract, keywords
 
@@ -267,7 +264,7 @@ class Tokenizer:
     @staticmethod
     def tokenize_sentences(text) -> list[str]:
         # Mask problematic dots with a sentinel value
-        masked_text: str = Processor.mask_problematic_punctuation(text)
+        masked_text: str = ingest.processor.mask_problematic_punctuation(text)
 
         # Split by delimiters
         sentences: list[str] = re.split(r"[.!?]\s", masked_text)
@@ -275,8 +272,8 @@ class Tokenizer:
         # Unmask the special cases by replacing the sentinel value back to dots
         unmasked_sentences: list[str] = []
         for sentence in sentences:
-            unmasked_sentences.append(Processor.unmask_problematic_punctuation(sentence))
-        unmasked_sentences = Processor.clean_string_list(unmasked_sentences)
+            unmasked_sentences.append(ingest.processor.unmask_problematic_punctuation(sentence))
+        unmasked_sentences = ingest.processor.clean_string_list(unmasked_sentences)
 
         return unmasked_sentences
 
@@ -284,9 +281,7 @@ class Tokenizer:
 if __name__ == "__main__":
     languages: list[str] = ["pt"]
     for language in languages:
-        for token_type in Tokenizer.token_types():
-            if token_type == "sentence_with_keywords":
-                continue
+        for token_type in ["sentence_with_keywords"]:
             tokenizer = Tokenizer(token_type, language)
-            documents: Iterator[list[RealDictRow]] = database.documents_chunk_generator()
-            tokenizer.tokenize(documents)
+            data: Iterator[list[RealDictRow]] = util.database.table_chunk_generator("clean_metadata")
+            tokenizer.tokenize(data)

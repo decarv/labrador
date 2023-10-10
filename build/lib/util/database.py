@@ -15,15 +15,13 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 """
-import asyncio
+
 import datetime
 from typing import Iterator, Optional
 
-import psycopg
-import psycopg_pool
+import torch
 import asyncpg
 import psycopg2
-import torch
 from psycopg2 import pool
 from psycopg2.extras import RealDictRow, RealDictCursor
 
@@ -32,12 +30,7 @@ from config import POSTGRESQL_DB_NAME, POSTGRESQL_DB_USER, POSTGRESQL_DB_PASSWOR
     POSTGRESQL_DB_PORT
 from ingest.models import Webpage, Metadata
 
-from util import log
-logger = log.configure_logger(__file__)
-log = log.log(logger)
-
 conn_pool: Optional[pool.SimpleConnectionPool] = None
-async_conn_pool: Optional[psycopg_pool.AsyncConnectionPool] = None
 
 
 def initialize_conn_pool(minconn: int, maxconn: int):
@@ -53,26 +46,6 @@ def initialize_conn_pool(minconn: int, maxconn: int):
     )
 
 
-conninfo: str = (f"dbname={config.POSTGRESQL_DB_NAME} "
-                 f"user={config.POSTGRESQL_DB_USER} "
-                 f"password={config.POSTGRESQL_DB_PASSWORD} "
-                 f"host={config.POSTGRESQL_DB_HOST} "
-                 f"port={config.POSTGRESQL_DB_PORT}")
-
-
-async def async_conn_pool_init():
-    await _async_conn_pool_init()
-
-
-async def _async_conn_pool_init(minconn: int = 1, maxconn: int = 100):
-    global async_conn_pool
-    async_conn_pool = psycopg_pool.AsyncConnectionPool(
-        conninfo=conninfo,
-        min_size=minconn,
-        max_size=maxconn,
-    )
-
-
 def get_conn():
     global conn_pool
     if conn_pool is None:
@@ -82,29 +55,8 @@ def get_conn():
 
 def release_conn(conn):
     global conn_pool
-    if conn_pool is None:
-        raise Exception("Connection pool is not initialized.")
-    return conn_pool.putconn(conn)
-
-
-async def get_conn_async():
-    global async_conn_pool
-    if async_conn_pool is None:
-        raise Exception("Connection pool is not initialized.")
-    return await async_conn_pool.getconn()
-
-
-async def put_conn_async(conn):
-    if conn is None:
-        return
-    global async_conn_pool
-    if async_conn_pool is None:
-        raise Exception("Connection pool is not initialized.")
-    return await async_conn_pool.putconn(conn)
-
-
-async def get_async_connection():
-    return await psycopg.AsyncConnection.connect(conninfo)
+    if conn_pool is not None:
+        conn_pool.putconn(conn)
 
 
 def table_instance_exists(table: str, column: str, value: str) -> Optional[tuple]:
@@ -228,7 +180,7 @@ def metadata_read() -> list[RealDictRow]:
             port=POSTGRESQL_DB_PORT
     ) as conn:
         with conn.cursor(cursor_factory=RealDictCursor) as cursor:
-            cursor.execute(f"SELECT * FROM data ORDER BY id;")
+            cursor.execute(f"SELECT * FROM clean_metadata ORDER BY id;")
             instances = cursor.fetchall()
     return instances
 
@@ -242,16 +194,12 @@ def table_chunk_generator(table_name: str, chunk_size: int = 4096) -> Iterator[l
         port=POSTGRESQL_DB_PORT
     ) as conn:
         with conn.cursor(cursor_factory=RealDictCursor) as cursor:
-            cursor.execute(f"SELECT * FROM {table_name} order by id ;")
+            cursor.execute(f"SELECT * FROM {table_name} order by id;")
             while True:
                 instances = cursor.fetchmany(chunk_size)
                 if not instances:
                     break
                 yield instances
-
-
-def documents_chunk_generator(chunk_size: int = 4096) -> Iterator[list[RealDictRow]]:
-    yield from table_chunk_generator("data", chunk_size)
 
 
 def embeddings_exists(token_id: int, model_name: str) -> bool:
@@ -314,7 +262,7 @@ def errors_insert(message: str) -> None:
 
 
 def table_read(table_name: str) -> list[RealDictRow]:
-    select_query: str = f"""SELECT * FROM {table_name} ORDER BY id;"""
+    select_query: str = """SELECT * FROM %s ORDER BY id;"""
     with psycopg2.connect(
         dbname=POSTGRESQL_DB_NAME,
         user=POSTGRESQL_DB_USER,
@@ -323,7 +271,7 @@ def table_read(table_name: str) -> list[RealDictRow]:
         port=POSTGRESQL_DB_PORT
     ) as conn:
         with conn.cursor(cursor_factory=RealDictCursor) as cursor:
-            cursor.execute(select_query)
+            cursor.execute(select_query, (table_name,))
             instances = cursor.fetchall()
     return instances
 
@@ -360,121 +308,3 @@ def tokens_chunk_generator(model_name, chunk_size: int = 4096) -> Iterator[list[
                 if not instances:
                     break
                 yield instances
-
-
-@log
-async def embeddings_read_async(model_name: str, token_type: str, language: str) -> dict[int, tuple[list[float], str]]:
-    global async_conn_pool
-    if async_conn_pool is None:
-        raise Exception("Connection pool is not initialized.")
-
-    batch_size = 100000
-    records: dict[int, tuple[list[float], str]] = {}
-
-    with psycopg.Connection.connect(conninfo) as conn:
-        with conn.cursor() as cur:
-            cur.execute(
-                """SELECT t.data_id
-                     FROM embeddings AS e
-                     JOIN tokens AS t ON e.token_id = t.id
-                    WHERE e.model_name = %s AND t.token_type = %s AND t.language = %s
-                    ORDER BY t.data_id;""", (model_name, token_type, language,)
-            )
-            ids: list[tuple[int, ...]] = [r[0] for r in cur.fetchall()]
-            interval_idx = list(range(0, len(ids), batch_size))
-            interval_idx.append(len(ids)-1)
-            intervals = [(ids[interval_idx[i]], ids[interval_idx[i+1]]) for i in range(len(interval_idx)-1)]
-    await asyncio.gather(*[
-        _embeddings_read(records,
-                         (model_name, token_type, language, from_id, to_id,)) for from_id, to_id in intervals
-    ])
-    return records
-
-
-async def _embeddings_read(records, _params: tuple[str, str, str, int, int]) -> None:
-    language = _params[2]
-    async with await psycopg.AsyncConnection.connect(conninfo) as aconn:
-        async with aconn.cursor() as cur:
-            await cur.execute(
-                """SELECT t.data_id, e.embeddings
-                    FROM embeddings AS e
-                    JOIN tokens AS t ON e.token_id = t.id
-                    JOIN data AS d ON t.data_id = d.id
-                   WHERE e.model_name = %s AND t.token_type = %s AND t.language = %s AND t.data_id >= %s AND t.data_id < %s;""",
-                _params)
-            records = await cur.fetchall()
-            for data_id, emb, tok, _ in records:
-                records[data_id] = (emb, tok)
-
-
-def embeddings_read(*params, batch_size) -> Iterator[list[RealDictRow]]:
-    select_query ="""SELECT t.data_id, e.embeddings
-            FROM embeddings AS e
-            JOIN tokens AS t ON e.token_id = t.id
-            JOIN data AS d ON t.data_id = d.id
-           WHERE e.model_name = %s AND t.token_type = %s AND t.language = %s
-           LIMIT 100000;"""
-    with psycopg2.connect(
-            dbname=POSTGRESQL_DB_NAME,
-            user=POSTGRESQL_DB_USER,
-            password=POSTGRESQL_DB_PASSWORD,
-            host=POSTGRESQL_DB_HOST,
-            port=POSTGRESQL_DB_PORT
-    ) as conn:
-        with conn.cursor(cursor_factory=RealDictCursor) as cursor:
-            cursor.execute(select_query, params)
-            while True:
-                instances = cursor.fetchmany(batch_size)
-                if not instances:
-                    break
-                yield instances
-
-
-def data_read_in_ids(data_ids: list[int]):
-    select_query = """SELECT d.id, d.title_pt, d.abstract_pt, d.keywords_pt
-            FROM data as d
-           WHERE d.id = ANY(%s);"""
-    with psycopg2.connect(
-            dbname=POSTGRESQL_DB_NAME,
-            user=POSTGRESQL_DB_USER,
-            password=POSTGRESQL_DB_PASSWORD,
-            host=POSTGRESQL_DB_HOST,
-            port=POSTGRESQL_DB_PORT
-    ) as conn:
-        with conn.cursor(cursor_factory=RealDictCursor) as cursor:
-            cursor.execute(select_query, (data_ids,))
-            return cursor.fetchall()
-
-
-def qrels_read() -> list[RealDictRow]:
-    select_query = """SELECT * FROM qrels;"""
-    with psycopg2.connect(
-            dbname=POSTGRESQL_DB_NAME,
-            user=POSTGRESQL_DB_USER,
-            password=POSTGRESQL_DB_PASSWORD,
-            host=POSTGRESQL_DB_HOST,
-            port=POSTGRESQL_DB_PORT
-    ) as conn:
-        with conn.cursor(cursor_factory=RealDictCursor) as cursor:
-            cursor.execute(select_query)
-            return cursor.fetchall()
-
-
-def qrels_write(query: str, doc_id: int, relevance: int) -> None:
-    insert_query = """INSERT INTO qrels (query, data_id, relevance) VALUES (%s, %s, %s);"""
-    with psycopg2.connect(
-            dbname=POSTGRESQL_DB_NAME,
-            user=POSTGRESQL_DB_USER,
-            password=POSTGRESQL_DB_PASSWORD,
-            host=POSTGRESQL_DB_HOST,
-            port=POSTGRESQL_DB_PORT
-    ) as conn:
-        with conn.cursor() as cursor:
-            cursor.execute(insert_query, (query, doc_id, relevance,))
-            conn.commit()
-
-
-if __name__ == "__main__":
-    import asyncio
-    asyncio.run(async_conn_pool_init())
-    embeddings = asyncio.run(embeddings_read(config.MODELS[0], "sentence_with_keywords", "pt"))

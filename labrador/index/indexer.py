@@ -15,54 +15,146 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 """
-from psycopg2.extras import RealDictCursor
+from typing import Iterator
 
-import util.database
-from util import utils
-from index import tokenizer
+import psycopg2
+from psycopg2.extras import RealDictCursor, RealDictRow
+import weaviate
+
+from index.tokenizer import Tokenizer
+import config
 from util import log
+from util.utils import weaviate_class_name
+
+BATCH_SIZE: int = 64
 
 logger = log.configure_logger(__file__)
 log = log.log(logger)
 
 
-class Indexer:
-    # TODO: I can compress these indices maps with simple math
-    def __init__(self, token_type: str, language: str):
-        self.indices_map = None
-        self.token_indices_map = None
-        self.tokens = None
+class SparseIndexer:
+    pass
+
+
+class DenseIndexer:
+    def __init__(self, client: weaviate.Client,
+                 model_name: str, token_type: str,
+                 description: str = "", vectorizer: str = 'none'):
+        self.client = client
+        self.class_name = weaviate_class_name(model_name, token_type)
+        logger.debug(f"Creating class {self.class_name}...")
+        self.model_name = model_name
         self.token_type = token_type
-        self.language = language
+        self.class_object: dict = {
+            "class": self.class_name,
+            "description": description,
+            "vectorizer": vectorizer,
+            "properties": [
+                {
+                    "name": "doc_id",
+                    "dataType": ["int"],
+                },
+                {
+                    "name": "title",
+                    "dataType": ["string"],
+                },
+                {
+                    "name": "abstract",
+                    "dataType": ["string"],
+                },
+                {
+                    "name": "keywords",
+                    "dataType": ["string"],
+                },
+                {
+                    "name": "author",
+                    "dataType": ["string"],
+                },
+                {
+                    "name": "token",
+                    "dataType": ["string"],
+                },
+            ],
+            "vectorIndexType": "hnsw",
+            "vectorIndexConfig": {
+                "distance": config.MODELS[model_name],
+            }
+        }
+        try:
+            self.client.schema.create_class(self.class_object)
+        except Exception as e:
+            logger.warning(e)
 
     @log
-    def generate_index(self, keep_in_memory: bool = False) -> None:
-        query = "SELECT clean_metadata_id, tokens FROM tokens WHERE token_type = %s ORDER BY clean_metadata_id;"
-        indices_map = []
-        token_indices_map = []
-        with util.database.connection() as conn:
-            with conn.cursor(cursor_factory=RealDictCursor) as cursor:
-                cursor.execute(query, (self.token_type,))
-                instances = cursor.fetchall()
-                for instance in instances:
-                    tokens = instance['tokens']
-                    indices_map.extend([instance['clean_metadata_id']] * len(tokens))
-                    token_indices_map.extend(list(range(len(tokens))))
+    def create_index(self):
+        with self.client.batch(batch_size=BATCH_SIZE, num_workers=4) as batch:
+            for i, records in enumerate(self.records_generator()):
+                logger.info(f"Iniciando batch...{i}")
+                for record in records:
+                    batch.add_data_object(
+                        self._create_object(record),
+                        class_name=self.class_name,
+                        vector=record['embeddings'],
+                    )
 
-        if keep_in_memory:
-            self.tokens = tokens
-            self.token_indices_map = token_indices_map
-            self.indices_map = indices_map
-        utils.indices_save((indices_map, token_indices_map), self.token_type, self.language)
+    @staticmethod
+    def _create_object(record: RealDictRow) -> dict:
+        data_object = {
+            "doc_id": record['id'],
+            "title": record['title'],
+            "abstract": record['abstract'],
+            "keywords": record['keywords'],
+            "author": record['author'],
+            "token": record['token'],
+        }
+        return data_object
+
+    def records_generator(self):
+        select_query: str = """
+                        SELECT d.id, d.title_pt as title, 
+                               d.abstract_pt as abstract, d.author, 
+                               d.keywords_pt as keywords, e.embeddings, t.token
+                        FROM embeddings AS e
+                        JOIN tokens AS t ON e.token_id = t.id
+                        JOIN data AS d ON t.data_id = d.id
+                        WHERE e.model_name = %s
+                          AND t.token_type = %s
+                          AND d.id > %s
+                        ORDER BY d.id
+                        LIMIT %s
+                        """
+
+        last_id: int = -1
+        model_name = self.model_name
+        token_type = self.token_type
+        with psycopg2.connect(
+            dbname=config.POSTGRESQL_DB_NAME,
+            user=config.POSTGRESQL_DB_USER,
+            password=config.POSTGRESQL_DB_PASSWORD,
+            host=config.POSTGRESQL_DB_HOST,
+            port=config.POSTGRESQL_DB_PORT,
+        ) as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                while True:
+                    cur.execute(
+                        select_query,
+                        (model_name, token_type, last_id, BATCH_SIZE)
+                    )
+                    records = cur.fetchall()
+                    if not records:
+                        break
+                    last_id = records[-1]['id']
+                    yield records
 
 
 if __name__ == '__main__':
-    for token_type in tokenizer.Tokenizer.token_types():
-        for language in ['pt', 'en']:
-            indexer = Indexer(token_type, language)
-            indexer.generate_index(keep_in_memory=True)
-
-
+    for model_name in config.MODELS:
+        for token_type in Tokenizer.token_types()[::-1]:
+            DenseIndexer(
+                client=weaviate.Client(config.WEAVIATE_URL),
+                model_name=model_name,
+                token_type=token_type,
+            ).create_index()
 
 # from annoy import AnnoyIndex
 # search_index = AnnoyIndex(embeds.shape[1], 'angular')

@@ -52,6 +52,7 @@
 \usepackage{color}				% Controle das cores
 \usepackage{graphicx}			% Inclusão de gráficos
 \usepackage{microtype} 			% para melhorias de justificação
+\usepackage{amsmath}
 % ---
 
 % ---
@@ -434,6 +435,8 @@ Agradecimentos.
 
 % EM CONSTRUÇÃO -------------------------------------------------------------------------------------------------------------------------
 
+
+
 O propósito desse trabalho é desenvolver um sistema de recuperação de trabalhos acadêmicos, com ênfase em técnicas modernas
 de recuperação desse tipo de documento.
 
@@ -449,11 +452,17 @@ de Teses e Dissertações da Universidade de São Paulo \footnote{https://www.te
 No capítulo \ref{ch:recuperacao-de-informacao} discuto ...
 
 
-\chapter{Recuperação de Informação}\label{ch:recuperacao-de-informacao}
+\chapter{Referencial Teórico}\label{ch:sistemas-de-recuperacao-de-informacao}
 
-Recuperação de informação pode assumir diferentes definições.
-Para este trabalho, recuperação de informação é definida como a disciplina que estuda como encontrar documentos relevantes, de natureza desestruturada, em meio a uma coleção de documentos, a
+\section{Recuperação de Informação}\label{sec:sobre-recuperacao-de-informacao}
+
+Recuperação de informação (``IR -- Information Retrieval'') pode assumir diferentes definições.
+Para este trabalho, IR é definida como a disciplina que estuda como encontrar documentos relevantes, de natureza desestruturada, em meio a uma coleção de documentos, a
 partir de uma consulta. \cite{manning2008introduction}
+
+Documento, no contexto da IR, referencia qualquer pedaço de informação que se deseja recuperar.
+No caso deste trabalho, documentos são os títulos, resumos e palavras-chave de teses acadêmicas, já que planeja-se usar esses dados para encontrar os trabalhos relevantes.
+Presume-se que se um documento é relevante, o trabalho associado a este documento também é relevante.
 
 Documentos relevantes são aqueles que satisfazem a necessidade do usuário. \cite{manning2008introduction}
 A definição de relevância é específica de um problema e depende de fatores como
@@ -461,7 +470,7 @@ características da busca, do usuário a que ela se destina, da consulta, dos do
 tempo e espaço da busca, o que confere à relevância uma natureza subjetiva e dinâmica.
 Como explicam \citeauthor{Ceri2013}, ``a relevância é multifacetada, sendo determinada não só pelo conteúdo de um
 resultado recuperado, mas também por aspectos como autoridade, credibilidade, especificidade, exaustividade,
-atualidade e clareza de sua fonte.''
+atualidade e clareza de sua fonte''.
 
 Documentos são de natureza desestruturada quando não possuem um modelo de dados definido, ou que são difíceis para um computador
 estruturar, interpretar, analisar ou segmentar. \cite{manning2008introduction}
@@ -471,21 +480,16 @@ Em contraste, documentos estruturados são os que possuem uma estrutura relacion
 A disciplina de estudo de dados estruturados é a recuperação de dados, que se baseia em uma forma expressa e bem
 definida de recuperação, articulada de maneira formal, sobre informação que possui um modelo pré-definido de dados. \cite{JurafskyMartin2023}
 
-A recuperação de informação é tratada como um campo de conhecimento que abrange uma variedade de
-sistemas, aqui chamados de sistemas de recuperação de informação, que se manifestam de diferentes formas.
-Por exemplo, sistemas de recuperação de informação são componentes centrais em motores de busca,
+A IR é tratada como um campo de conhecimento que abrange uma variedade de
+sistemas, aqui chamados de sistemas de recuperação de informação (``IRS -- Information Retrieval System''), que se manifestam de diferentes formas.
+Por exemplo, IRSs são componentes centrais em motores de busca,
 sistemas de filtragem de informação, sistemas de sumarização de documentos, sistemas de perguntas e respostas,
 sistemas de recomendação, dentre outros. \cite{Ceri2013}
 
-Todos esses sistemas têm em comum um modelo de recuperação de informação, que descreve como um sistema de recuperação de informação
-processa, armazena, recupera e apresenta os dados desestruturados.
-Passa-se a discutir aspectos fundamentais de um sistema de recuperação de informação, especificamente àqueles que
-servem à recuperação de documento.
+\section{Sistema de Recuperação de Informação}\label{sec:sobre-recuperacao-de-informacao}
 
-\section{Sistemas de Recuperação de Informação}\label{sec:sistemas-de-recuperacao-de-informacao}
-
-Defino o sistema de recuperação de informação (``IRS -- Information Retrieval System'') como a implementação de um modelo de recuperação de informação (``IRM -- Information Retrieval Model'').
-O IRM fornece um arcabouço teórico que descreve como a recuperação de informações funciona e pode ser definido formalmente pela quádrupla: \cite{Ceri2013}
+Defino o IRS como a implementação de um modelo de recuperação de informação (``IRM -- Information Retrieval Model'').
+Um IRM descreve o funcionamento da recuperação de informação em um sistema e é formalmente definido pela quádrupla: \cite{Ceri2013}
 
 \begin{equation}
 \text{IRM} = \{D, Q, F, R(q_k, d_j)\}
@@ -496,150 +500,386 @@ onde
 \begin{itemize}
     \item \(D\) é um conjunto de representações \(d_j\) de documentos;
     \item \(Q\) é um conjunto de representações \(q_k\) de consultas;
-    \item \(F\) é a estratégia usada para modelar a representação de documentos e consultas e suas relações;
+    \item \(F\) é a estratégia adotada para modelar a representação de documentos e consultas e suas relações;
     \item \(R(q_k, d_j)\) é a função de ranqueamento que associa \(d_j\) a um número real que denota sua relevância para \(q_k\).
 \end{itemize}
 
-Diferentes modelos de recuperação de informação
-% variam em suas representações para os documentos e consultas, além de sua estratégia para modelar essas representações e para ranquear um documento, ou seja,
-irão se diferenciar na definição de $D$, $Q$, $F$ e $R$, a depender das
-características dos documentos, das características dos usuários, da forma de consultar desses usuários e da estratégia usada para recuperar e ranquear um documento
-na coleção.
-IRMs podem ser categorizados pela abordagem usada para recuperar informação.
+Autores costumam categorizar modelos em diferentes abordagens, a depender de como são definidos os elementos $D$, $Q$, $F$ e $R$ do modelo.
+Em essência, modelos são categorizados a partir de seu entendimento sobre relevância e da estratégia adotada para recuperar documentos relevantes.
 
-Modelos que se encaixam na abordagem de correspondência exata possuem uma forma estruturada
-de realizar consultas que favorece usuários que buscam rigor na pesquisa, mas não
-são capazes de ranquear os resultados com base em relevância, como o modelo booleano. \cite{Hiemstra2009}
+Modelos que se encaixam na abordagem de correspondência exata compreendem relevância e adotam uma estratégia para recuperar documentos fundamentalmente diferente da estratégia adotada por modelos que se encaixam ou na abordagem de espaço vetorial, ou de modelos que se encaixam na abordagem probabilística.
+\cite{Hiemstra2009}
 
-Modelos que se encaixam na abordagem de espaço vetorial (``VSM -- Vector Space Models'') comparam a representação vetorial dos documentos e a representação
-vetorial da consulta e classificam os documentos com base no grau de similaridade entre as representações.
-Nesse caso, grau de similaridade pode ser medido por meio de uma medida de associação, como produto interno entre
-os vetores.
-Segundo \citeauthor{Hiemstra2009}, uma desvantagem desse modelo é a incerteza sobre como o vetor deve ser representado e como
-essa representação deve ser implementada.
-O problema de representar vetorialmente um texto é chamado de ponderação de termo e isso é discutido na
-Seção~\ref{sec:representacao-vetorial-de-texto}.
+% Importante notar que não há uma forma precisa, ou mesmo uma preocupação, de categorizar fielmente um modelo
+% \footnote{Por exemplo, algumas abordagens probabilísticas de representar documentos, como BM-25, são também uma forma abordagem de espaço vetorial.}
+% e que não existe uma abordagem ou um modelo melhor que outros para implementação de um sistema.
+Não é incomum, entretanto, encontrar descrições de modelos que se encaixam em diferentes abordagens,
+de modo que não existe um consenso ou uma clareza de classificação dos diferentes modelos.
+\footnote{Alguns autores descrevem modelos baseados em comparação de palavras-chave como modelos de correspondência exata \cite{} e outros os descrevem como modelos de espaço vetorial \cite{Hiemstra2009}.}
+A verdade é que um modelo pode carregar características de diferentes abordagens, sem que isso descaracterize sua abordagem principal.
+Por exemplo, modelos de espaço vetorial vão usar correspondência exata para encontrar documentos relevantes e usar um modelo probabilístico para ranquear seus documentos.
 
-Modelos que se encaixam na abordagem probabilística são usados para definir o modelo de representações de documentos ou
-as consultas por meio de cálculo de probabilidade.
-Esses modelos buscam desenvolver de forma mais precisa a ponderação de termos da abordagem de espaço vetorial. \cite{Hiemstra2009}
+Cumpre observar, apenas, que a definição de um IRM é importante para delinear e conduzir experimentos e constatar sua eficácia para uma aplicação específica.
+A descição formal do modelo é necessária para garantir consistência e para ``garantir que o modelo pode ser implementado em um sistema real''.\cite{Hiemstra2009}
 
-Importante notar que não há uma forma precisa, ou mesmo uma preocupação, de categorizar fielmente um modelo
-\footnote{Por exemplo, algumas abordagens probabilísticas de representar documentos, como BM-25, são também uma forma abordagem de espaço vetorial.}
-e que não existe uma abordagem ou um modelo melhor que outros para implementação de um sistema.
-A categorização dos modelos servem ao estudo acadêmico dos IRM, e não de um IRS.
-Um IRS pode, inclusive, implementar diferentes modelos de IRMs.
-Cada modelo tem vantagens e desvantagens e sua utilização depende das características do sistema que se pretende implementar.
-Como explicado acima, a recuperação de informação é subjetiva e dinâmica e o valor de um modelo vai depender, acima de tudo,
-dos resultados obtidos após a implementação do sistema, avaliados em um contexto específico.
+Ao mesmo tempo que um modelo é responsável por ser o esboço ou plano (\textit{blueprint}) de um IRS, um IRS também pode implementar diferentes modelos.
+Como exemplo, o buscador do Google permite buscas por correspondências exatas de palavras-chave e booleanas
+\footnote{https://support.google.com/websearch/answer/2466433}
+e, ao mesmo tempo, implementa outros modelos que permite encontrar maior relevância em buscas cotidianas, como o PageRank ou modelos baseados em redes neurais.
+\footnote{https://searchengineland.com/how-google-uses-artificial-intelligence-in-google-search-379746}
 
-O propósito desse trabalho é desenvolver um sistema de recuperação de trabalhos acadêmicos, com ênfase em técnicas modernas
-de recuperação desse tipo de documento.
-Portanto, ignoro a discussão de modelos que se baseiam na abordagem de correspondência exata para discutir modelos que se
-baseiam nas abordagens de espaço vetorial e probabilística.
-Dentro desse contexto, objetivo encontrar a melhores formas de modelar a representação de documentos e consultas, bem
-como a melhor forma de ranquear os documentos em um sistema de recuperação de trabalhos acadêmicos.
+Ao fim, a implementação de um IRS e os modelos escolhidos para serem implementados, dependerão das características dos documentos, das especificidades das consultas e da estratégia empregada na representação, recuperação e ranqueamento de um documento na coleção.
+Principalmente, a maneira que um IRM compreende relevância influencia diretamente na definição de seus elementos.
 
-\section{Representação Vetorial de Documentos}\label{sec:representacao-vetorial-de-documentos}
+E se, como argumentado, a definição de relevância é específica de um problema, então a escolha do IRM implementado por um IRS será primordialmente pautada pelo resultado que se pretende alcançar, considerando as características reais dos documentos, consultas e usuários.
+Ou seja, a validade e eficácia do IRM é julgada pelos resultados obtidos após sua tradução em IRS, avaliados em um contexto específico, definido um objetivo específico.
+
+Portanto, antes da implementação de qualquer IRS, é necessário definir o problema que pretendo resolver nesse trabalho e as formas que uso para resolver esse problema.
+
+\section{O Problema de Ranqueamento}\label{sec:o-problema-de-ranqueamento}
+
+O problema de ranqueamento de documentos pode ser definido como, ``dada uma necessidade de informação expressada por meio da consulta $q$, a tarefa de [...] retornar uma lista
+ranqueada de $k$ textos $\{d_1, d_2 ... d_k\}$ de uma coleção de textos $C = \{d_i\}$ arbitrariamente grande, mas finita, que maximiza uma métrica de interesse, por exemplo, nDCG, AP, etc''\cite{}.
+
+Um IRM busca solucionar o problema de ranqueamento através de uma função de ranqueamento \(R(q_i, d_j)\) que associa \(d_j\) a um número real $s_j$ que denota sua relevância para \(q_i\).
+A lista ranqueada de textos pode ser ``mais explicitamente caracterizada como $\{(d_1, s_1), (d_2, s_2) ... (d_k, s_k)\}$ com a restrição de que $s_1 > s_2 > ... > s_k$''. \cite{}
+
+No contexto do meu objetivo, que é desenvolver um mecanismo de busca para literatura acadêmica brasileira, estou restringindo a questão ao ranqueamento de trabalhos acadêmicos. Aqui, os documentos se referem especificamente a títulos, resumos e palavras-chave, e as consultas são feitas através de um campo em uma página web.
+Como solução deste problema, sugiro a implementação e posterior avaliação de eficácia de dois IRMs.
+
+O primeiro, chamado aqui de \textbf{modelo de correspondência exata}, representa documentos e consultas por meio de vetores esparsos e utiliza funções probabilísticas para comparar esses vetores e realizar ranqueamento. O segundo, chamado aqui de \textbf{modelo de busca semântica}, representa documentos e consultas por meio de vetores densos e utiliza operações algébricas para ranqueamento.
+
+Nesses dois IRMs, a função de ranqueamento busca estimar a relevância de um documento $d$ em relação a uma consulta $q$, por meio de uma função $\Delta$ que calcula a similaridade entre as representações de $q$ e $d$, calculadas por meio das funções $\phi_q$ e $\phi_d$:
+
+\begin{equation}\label{eq:irm-rank}
+    R(q, d) = \Delta(\phi_q(q), \phi_d(d))
+\end{equation}
+
+Entendo que ambos os modelos são variações da abordagem de modelos de espaços vetoriais, uma vez que
+usam representações para documentos e consultas baseados em uma distribuição estatística dos termos na coleção de documentos.
+Entretanto, ambos são fundamentalmente diferentes na forma que criam essas representações dos documentos e consultas e na forma que calculam o ranqueamento, ou seja, na forma que atribuem relevância.
+Nas restante do capítulo justifico a estratégia usada por esses IRMs para representar documentos e consultas e, em seguida, explico suas diferenças na forma de abordar essa estratégia.
+Na seção \ref{sec:representacao-vetorial-de-texto}, discuto como documentos e consultas são representados nesses IRMs.
+Na seção \ref{sec:ranqueamento-de-documentos}, discuto como documentos são ranqueados nesses IRMs.
+Na seção \ref{sec:arquitetura-de-um-sistema-de-recuperacao-de-informacao}, discuto os aspectos gerais de um IRS sob a ótica dos IRMs propostos.
+
+\section{Representação Vetorial de Texto}\label{sec:representacao-vetorial-de-texto}
 
 Semântica vetorial é o nome que se dá à forma padrão de representar texto por meio de vetores.
 A base da atual semântica vetorial nasceu nos anos 50, quando foram propostas ideias de representar
-o significado de uma palavra por meio de sua distribuição no uso da linguagem e de representar essa distribuição por
-meio de um vetor.
+o significado de uma palavra por meio de sua distribuição no uso da linguagem e de representar essa distribuição por meio de um vetor.
 \cite{JurafskyMartin2023}
 
 Essa abordagem é chamada de hipótese distribucional, que estipula que palavras que ocorrem em um mesmo contexto possuem significados similares. \cite{PilehvarCamacho-Collados2022}
-Ocupar o mesmo contexto significa que seu uso na linguagem é similar, que ela ocorre nas mesmas posicões em uma frase ou que mantém relação parecida com as demais palavras.
-Palavras que ocorrem em um mesmo contexto, têm, assim, similaridade semântica. Talvez elas sejam palavras sinônimas,
-ou talvez elas carreguem algum sentido comum quando usadas.
-Paralelamente, documentos que possuem distribuição parecida de palavras são considerados similares.
+Aqui, possuir ``significado similar'' significa que seu uso na linguagem é similar, que ela ocorre nas mesmas posicões em uma frase ou que mantém relação parecida com as demais palavras.
+Palavras que ocorrem em um mesmo contexto, teriam, assim, similaridade semântica.
+Talvez elas sejam palavras sinônimas, ou talvez elas carreguem algum sentido comum quando usadas em um contexto específico.
+\footnote{Cumpre notar que algumas palavras que carregam similaridade semântica em um contexto podem simplesmente não ter similaridade em outro contexto.}
+Sob a mesma premissa, documentos que possuem distribuição parecida de palavras são considerados similares.
 
-A ideia por trás da semântica vetorial é, portanto, representar palavras como um ponto em um espaço multidimensional derivado das distribuições de vizinhanças \cite{JurafskyMartin2023},
-possibilitando a medida de um grau de similaridade de termos ou documentos por meio de um cálculo de similaridade entre suas representações vetoriais.
+A ideia por trás da semântica vetorial é representar palavras como um ponto em um espaço multidimensional derivado das distribuições de vizinhanças, de palavras e palavras que estão próximas a elas,
+possibilitando a medida de um grau de similaridade de termos ou documentos por meio de um cálculo de similaridade entre suas representações vetoriais.\cite{JurafskyMartin2023}
 
 As representacões vetoriais podem ser classificadas entre técnicas baseadas na contagem de frequência de ocorrência
-ou co-ocorrência das palavras, que resultam em vetores esparsos, e técnicas baseadas em redes neurais, que resultam
-em vetores densos.
-Discuto abaixo as técnicas mais atuais para geração de vetores esparsos (\ref{subsec:vetores-esparsos}) e vetores densos (\ref{subsec:vetores-densos-embeddings})
-usados na comparação de documentos, bem como o cálculo de similaridade entre documentos (\ref{subsec:similaridade-entre-documentos}).
+ou co-ocorrência das palavras, que resultam em representações esparsas de texto usadas no modelo de correspondência exata, e técnicas baseadas em redes neurais, que resultam
+em representações densas de texto usadas no modelo de busca semântica.
 
-% [TODO: Criar exemplos de um vetor representando um texto simples]
+Explicada a estratégia da representação vetorial de texto, que baseia os IRMs baseados no modelo de espaço vetorial, esclareço as diferenças entre as estratégias usadas pelo modelo de correspondência exata \ref{sec:modelo-de-correspondencia-exata} e pelo modelo de busca semântica \ref{sec:modelo-de-busca-semantica}.
 
-\subsection{Vetores Esparsos}\label{subsec:vetores-esparsos}
+\section{Modelo de Correspondência Exata}\label{sec:modelo-de-correspondencia-exata}
 
-Vetores esparsos são geralmente baseados em uma matriz de co-ocorrência, uma forma de representar a ocorrência de um
+Para explicar o modelo de correspondência exata, explico primeiramente a forma usada por esse modelo para representar o texto para, em seguida, explicar a forma de calcular a similaridade.
+
+Representações esparsas de texto são geralmente baseadas em uma matriz de co-ocorrência, uma forma de representar a ocorrência de um
 termo em relação a um documento.
-No caso de matrizes que relacionam termos e documentos, são chamadas de matrizes de termo-documento.
-% ou em relação a outros termos (matrizes de termo-termo).
+Essas são chamadas de matrizes de termo-documento.
+\footnote{Existem também as matrizes que relacionam termos a outros termos (matrizes de termo-termo), mas essas não possuem relevância para este trabalho.}
 \cite{JurafskyMartin2023}
 
 Nessas matrizes, um vetor coluna denota um documento, que é representado pelas frequências de seus termos.
-Cada linha $i$ da matriz representa uma palavra e cada coluna $j$ representa
-um documento.
+Cada linha $i$ da matriz representa uma palavra e cada coluna $j$ representa um documento.
 Ou seja, o valor $M_{i,j}$ representa a frequência da palavra $P$ da linha $i$ em um documento $D$ da coluna $j$.
+Como exemplo, veja a coleção de documentos abaixo e parte de sua matriz de co-ocorrência termo-documento:
 
-Em uma matrix $m \times n$, cada vetor de palavra tem dimensão $n$ e cada vetor de documento tem dimensão $m$.
-A comparação entre dois documentos se dá pelo cálculo de similaridade de vetores coluna e a
-comparação de sentido de duas palavras se dá pelo cálculo de similaridade de vetores linha.
+\begin{center}
+\begin{tabularx}{\textwidth}{|c|X|}
+\hline
+Documento & Texto \\
+\hline
+Documento 1 & Esperou em um banco para pagar a conta. Depois de horas esperando, saiu do banco e foi ao parque. \\
+\hline
+Documento 2 & Sentou em um banco da praça para aguardar sua chegada. \\
+\hline
+Documento 3 & Eu banco a despesa. \\
+\hline
+\end{tabularx}
+\end{center}
 
-% [COMENTÁRIO: em análise lexica, qual a diferença entre sentido e significado?]
-Uma consequência desse tipo de representação é que o número de linhas é igual ao tamanho do vocabulário e o número de colunas
-é igual ao número de documentos.
-Notadamente essa representação ocupa um espaço proporcional a $m \times n$ e é esparsa, já que a distribuição de palavras por documento e
-a distruição de documentos em cada palavra é pequena quando comparada à quantidade de documentos e ao tamanho do vocabulário.
-Usar essa representação para recuperação de informação exige pensar em armazenamento e recuperação de matrizes com essas
-características específicas.
+
+\begin{table}[ht]
+\centering
+\caption{Matriz Termo-Documento.}
+\label{tab:term-doc-matrix}
+\begin{tabular}{|l|c|c|c|}
+\hline
+Termo     & Documento 1 & Documento 2 & Documento 3 \\
+\hline
+a         & 1           & 0           & 1           \\
+\hline
+aguardar  & 0           & 1           & 0           \\
+\hline
+ao        & 1           & 0           & 0           \\
+\hline
+banco     & 2           & 1           & 1           \\
+\hline
+chegada   & 0           & 1           & 0           \\
+\hline
+\multicolumn{4}{c}{\vdots} \\
+\end{tabular}
+\end{table}
+
+
+Em uma matriz $m \times n$, cada vetor de palavra tem dimensão $n$ e cada vetor de documento tem dimensão $m$.
+Uma consequência desse tipo de representação é que o número de linhas é igual ao tamanho do vocabulário e o número de colunas é igual ao número de documentos.
+Essa representação ocupa um espaço proporcional a $m \times n$ e é considerada esparsa para a maior parte dos documentos, já que a distribuição de palavras por documento é pequena quando comparada ao número de documentos.
 \cite{JurafskyMartin2023}
 
+% [COMENTÁRIO]
+% Futuramente, cumpre ressaltar que usar essa representação para recuperação de informação
+% exige pensar em armazenamento e recuperação de matrizes com essas
+% características específicas.
+
+IRMs que usam representações esparsas de texto calculam a similaridade entre documentos por meio de uma análise da frequência dos termos presentes na consulta e que também estão presentes nos documentos da coleção.
+Isso pode ser feito pela análise dos valores de um vetor coluna da matriz acima.
+
+Entretanto, uma análise crua da frequência de termos por documento pode não ser representativa da similaridade entre documentos.
+Primeiro, a alta frequência de uma palavra em um documento pode afetar desproporcionalmente uma comparação entre documentos simplesmente por um documento ter mais palavras que o outro.
+Segundo, algumas palavras aparecem com muita frequência em documentos e não
+carregam grande significado semântico.
+Necessita-se, portanto, de uma medida, baseada nos valores das frequências, que passe a representar
+a importância de uma palavra para um documento.
+
+Por esses motivos, a análise de frequência é feita a partir atribuição de pesos aos termos (\textit{weighting}), seguida de alguma medida de associação entre os termos da consulta e os termos do documento.
+Assim, uma função de atribuição de valor (função de \textit{scoring}) pode ser descrita como: \cite{}
+
+\begin{equation}
+\label{eq:score}
+    S(q,d) = \sum_{t \in q \cap d} w(t)
+\end{equation}
+
+onde $w$ é uma função que atribui um peso a um termo $t$, a partir de uma estatística associada ao termo no documento ou coleção.
+
+As estatísticas associadas comumente usadas
+\footnote{Essas são comumente usadas para computar variações da família de funções chamadas de frequência de termo e inverso da frequência por documento (tf-idf -- \textit{Term Frequency Inverse Document Frequency}).}
+são:
+(a) frequência do termo no documento (tf -- \textit{term frequency})
+% (equação \ref{eq:tf})
+, (b) frequência do termo na coleção de documentos ou seu inverso (df \textit{-- document frequency} e idf { -- \textit{inverse document frequency}})
+% (equações \ref{eq:df} e \ref{eq:idf})
+, e (c) tamanho do documento (dl \textit{-- document length})
+% (equação \ref{eq:dl})
+. \cite{}
+
+\begin{equation}
+\text{tf}(t, d) = count(t, d)
+\label{eq:tf}
+\end{equation}
+
+\begin{equation}
+\text{df}(t) = \left| \{ d \in D : t \in d \} \right|
+\label{eq:df}
+\end{equation}
+
+\begin{equation}
+\text{idf}(t) = \log \frac{|D|}{\text{df}(t)}
+\label{eq:idf}
+\end{equation}
+
+\begin{equation}
+\text{dl}(d) = \sum_{t \in d} f(t,d) \\
+\label{eq:dl}
+\end{equation}
+
+\begin{equation}
+\text{avgdl}(d) = \frac{1}{|D|} \sum_{d \in D} \text{dl}(d)
+\label{eq:}
+\end{equation}
+
+% open source connections bm25
+% staff.city.ac.uk
+% Essa família de funções que busca amenizar os problemas mencionados acima ao calcular um peso para um termo $t$, por meio do produto $tf(t,d) \times idf(t)$, em que $tf(t,d)$ é a frequência normalizada do termo $t$ no documento $d$, e $idf(t)$ é o inverso da frequência do termo na coleção de documentos, ou seja, o número total de documentos dividido pelo número de documentos em que o termo ocorre:
+% \begin{equation}
+% \text{tf-idf}(t, d) = \frac{f_{t, d}}{\sum_{t' \in d} f_{t', d}} \times \log \frac{N}{\text{df}(t)}
+% \label{eq:tfidf_expanded}
+% \end{equation}
+
+A função $w$ mais usada em sistemas de busca por correspondência exata é a função BM25 (\textit{Best Match 25}): \cite{}
+
+\begin{equation}
+\text{BM25}(d,q) = \sum_{t \in q \cap d} \frac{(k + 1) \times \text{tf}(t,d)}{k_1 \times ((1-b) + b \times \frac{\text{dl}(d)}{\text{avgdl}(d)}) + \text{tf}(t,d)} \times \log \frac{|D| - \text{df}(t) + 0.5}{\text{df}(t) + 0.5}
+\end{equation}
+
+em que o segundo termo da equação é idf adaptado e $k$ e $b$ são hiperparâmetros.
+
+Variações da BM25 são o estado da arte na representação vetorial esparsas de documentos e, por esse motivo, essa função ainda é largamente implementada em sistemas de recuperação de informações. \cite{}
+
+Uma vantagem desses IRMs é que eles são eficientes, já que o cálculo de relevância de uma consulta tem complexidade proporcional ao número de termos da consulta, e são simples de implementar, já que dependem
+apenas da criação de um índice invertido.
+\textbf{[TODO MENCIONAR LUCENE COMPLETAR COM INFORMAÇÕES DO CAPÍTULO KEYWORD SEARCH]}
+
+No entanto, o cálculo de similaridade baseado em análise de frequências apresenta desvantagens significativas. A matriz exemplificada na Tabela \ref{tab:term-doc-matrix} ilustra claramente as limitações dessa abordagem.
+
+Primeiro, uma representação de um texto aqui descrita não consegue capturar a polissemia de um termo.
+No caso exemplo, o termo ``banco'' apresenta 3 significados diferentes e uma consulta ``bancos de parque''
+provavelmente teria como retorno mais relevante o Documento 1 (independentemente ta medida de associação a ser considerada),
+ao invés do Documento 2, que é factualmente mais relevante para a consulta.
+
+Segundo, e mais importante, esse modelo sofre com a incompatibilidade de vocabulário (\textit{vocabulary mismatch}).
+Esse é um problema conhecido em PNL e se manifesta quando ``pessoas diferentes nomeiam a mesma coisa ou conceito de formas diferentes''
+\footnote{https://en.wikipedia.org/wiki/Vocabulary_mismatch}
+.
+No caso exemplo, a consulta ``pagar os custos'' provavelmente teria como documento mais relevante o Documento 1, o que não é necessariamente verdade,
+dado que o Documento 3 é ``Eu banco a despesa'', que contém uma ideia semanticamente mais parecida com a consulta.
+
+Vetores esparsos têm uma boa capacidade de representar documentos para uma comparação por similaridade textual, mas não para similaridade semântica.
+Como se pode verificar pela explicação acima, para o caso em que o documento relevante define a uma mesma ideia com diferentes palavras, ou usa palavras sinônimas, mas não uma distribuição de palavras similar à da consulta, uma busca que usa BM25 torna-se insatisfatória. \cite{thakur-2021-BEIR}
+
+Portanto, apesar do IRM descrito depende da correspondência exata entre os termos da consulta e os termos do texto e acaba enfrentando o desafios de linguagem sem solução simples.
+\footnote{A necessidade de correspondência exata é amenizada por meio de algumas técnicas, como \textit{stemming} e \textit{lemmatization}, mas
+ainda assim, essas técnicas não são capazes de superar o problema da incompatibilidade de vocabulário.}
+Historicamente, três abordagens têm sido usadas para superar esse desafio:
+\begin{itemize}
+    \item[(a)] melhorar as representações da consulta;
+    \item[(b)] melhorar as representações dos documentos; e
+    \item[(c)] usar representações não dependentes de correspondência exata.
+\end{itemize}
+\cite{}
+
+
+Uma abordagem que deriva, de certa forma, da abordagem (c), é a utilização de representações textuais densas para calcular a similaridade semântica. \cite{}
+De fato, para solucionar os problemas com o atual IRM, necessita-se uma nova forma de representar documentos e consultas, uma que considere o significado semântico dos termos, com menor ênfase na contagem de termos léxicos e maior ênfase em adquirir intuição sobre seu significado no contexto. \cite{bhaskar-craswell-2018}
+
+% [INFORMAÇÃO REMOVIDA]
 % Em matrizes termo-termo, termos são relacionados com outros termos que ocorrem no mesmo contexto.
-% Nesse caso, cada palavra P ocupa uma linha i e uma coluna j, ou seja, cada vetor de palavra tem dimensão |P|, e o valor $Mi,j$ é a frequência em que uma palavra ocorre no
-% mesmo contexto de outra.
+% Nesse caso, cada palavra P ocupa uma linha i e uma coluna j, ou seja, cada vetor de palavra tem dimensão |P|,
+% e o valor $Mi,j$ é a frequência em que uma palavra ocorre no mesmo contexto de outra.
 % Um contexto é definido como uma janela de $k$ palavras na mesma sentença e a ocorrência no mesmo contexto é medida como
 % $(k-1)/2$ palavras à direita e $(k-1)/2$ palavras à esquerda.
 % Essa representação ocupa um espaço proporcional a |P| x |P| e também é esparsa.
 % \cite{JurafskyMartin2023}
 
-Entretanto, a análise crua da frequência de termos por documento ou por termos não é representativa da similaridade
-entre documentos. % ou entre palavras. No caso de documentos, são dois motivos.
-Primeiro, a alta frequência de uma palavra em um documento pode afetar desproporcionalmente uma comparação entre documentos
-simplesmente por um documento ter mais palavras que o outro.
-Segundo, algumas palavras, como artigos, aparecem com muita frequência em documentos e não
-carregam grande significado semântico que possa ser usado para extrair relações de similaridade.
-Por esses motivos, necessita-se de uma medida, baseada nos valores das frequências, que passe a representar
-a importância de uma palavra para um documento.
+\section{Modelo de Busca Semântica}\label{sec:modelo-de-busca-semantica}
 
-Uma medida comum é a função de Frequência de Termo e Inverso da Frequência por Documento (``tf-idf -- \textit{Term Frequency Inverse Document Frequency}''), que busca resolver os dois problemas acima ao
-calcular um peso $w_{t,d}$ para um termo $t$ e um documento $d$, por meio do produto $tf_{t,d} \times idf_{t}$, em que $tf_{t,d}$ é
-a frequência normalizada do termo $t$ no documento $d$, e $idf_{t}$ é o número total de documentos dividido pelo número de documentos em que o termo ocorre $df$:
+A solução proposta para o problema observado em abordagens puramente léxicas foi a utilização de redes neurais para criar representações densas de texto (\textit{embeddings}).
+Nessas representações, o texto é mapeado para um espaço vetorial de baixa dimensão, em que todas as dimensões têm valores diferentes de 0.
+Essas representações são chamadas de densas em oposição às representações esparsas observadas no modelo de correspondência exata, em que a dimensão era proporcional ao tamanho do vocabulário.
 
-\begin{equation}
-\text{tf}(t, d) = \frac{f_{t, d}}{\sum_{t' \in d} f_{t', d}}
-\label{eq:tf}
-\end{equation}
+O uso de redes neurais para resolver o problema do ranqueamento têm se baseado em duas abordagens, modelos que se valem do rerranqueamento de documentos retornados por um modelo de correspondência exata e modelos que usam técnicas de recuperação profunda (\textit{dense retrieval}), que computam o ranqueamento diretamente nas representações vetoriais capazes de capturar significado semântico. \cite{}
 
-\begin{equation}
-\text{idf}(t) = \log \frac{N}{\text{df}(t)}
-\label{eq:idf}
-\end{equation}
+A primeira abordagem evidentemente sofre com o problema de \textit{vocabulary mismatch} em sua primeira etapa de recuperação de informação. Para além disso, como notam os autores \citeauthor{}, existem outros motivos para preferir a segunda abordagem. Primeiro, o custo computacional de rerranquear documentos é caro e é feito durante a consulta, ao invés de ser feito na etapa de pre-processamento como no modelo de \textit{dense retrieval}, que calcula apenas a inferência da consulta e usa uma função de similaridade rápida de calcular em uma coleção de vetores densos usando soluções baseadas em \textit{nearest neighbor search}. Segundo, arquiteturas de várias camadas são pouco elegantes e trazem uma série de problemas para o treinamento do modelo de rede neural que se localiza na segunda camada.
+
+\textbf{[COMPLETAR COM A TÉCNICA PRE-BERT / PÓS-BERT / FORMA QUE FUNCIONA DENSE RETRIEVAL MODELS}]
+
+Portanto, \textit{dense retrieval} soluciona o problema de ranqueamento através da geração de representações densas dos documentos e do cálculo uma métrica simples de similaridade entre a representação da consulta e do documento.
+
+Essa métrica simples é geralmente obtida através de operações de álgebra linear que medem similaridade entre vetores.
+
+Um método algébrico comum de medir a similaridade entre dois vetores é através do produto interno, definido por:
 
 \begin{equation}
-\text{tf-idf}(t, d) = \text{tf}(t, d) \times \text{idf}(t)
-\label{eq:tfidf1}
+\text{dot}(\mathbf{u}, \mathbf{v})  = \mathbf{u} \cdot \mathbf{v} = \sum_{i}u_{i}v_{i}
+\label{eq:dot_product}
 \end{equation}
+
+Uma interpretação para o resultado do produto interno é a medição de quanto um vetor $u$ está no mesmo sentido e direção de outro vetor $v$. Essa é uma interpretação conveniente para compreender a medida de similaridade entre duas representações vetoriais de texto.
+
+Um problema de realizar medições com o produto interno é comparar similaridades, pois $dot(u,v)$ pode ser arbitrariamente grande ou pequeno a depender dos valores dos componentes $u_i$ e $v_i$ dos vetores. Nesse caso, pode parecer mais sensato calcular o produto interno com vetores normalizados, o que resulta no valor do cosseno do ângulo entre os vetores e leva todas as comparações
+a um intervalo entre 0 e 1, uma vez $v_i, u_i \geq 0, \forall i$:
 
 \begin{equation}
-\text{tf-idf}(t, d) = \frac{f_{t, d}}{\sum_{t' \in d} f_{t', d}} \times \log \frac{N}{\text{df}(t)}
-\label{eq:tfidf_expanded}
+\cos (\mathbf{u}, \mathbf{v})  = \frac{\mathbf{u} \cdot \mathbf{v}}{\|\mathbf{u}\| \|\mathbf{v}\|}
+\label{eq:cosine_similarity}
 \end{equation}
 
-Uma variação do tf-idf é a função BM25 (\textit{Best Match 25}), que adiciona dois hiperparâmetros $k_1$ e $b$ e a medida $avgDL$ para prover mais controle na influência de tf e na influência do tamanho do documento: \cite{wikipedia2023okapibm25}
+Assim, é possível comparar similaridades entre diferentes vetores de palavras.
+Quanto mais próximo de 1 for o resultado, mais similares são os termos comparados.
+Essa técnica funciona para qualquer modelo vetorial de texto.
+
+No caso da similaridade entre um documento $d$ e um conjunto de documentos $V$, tal que $V = \{\mathbf{v_1}, \mathbf{v_2}, ... \mathbf{v_n}\}$,
+pode-se calcular o cosseno entre a representação de $d$, denotada por $\mathbf{u}$, e o centróide $\mathbf{c}$ de $V$, dado por:
 
 \begin{equation}
-\text{score}(D,Q) = \sum_{i=1}^{n} \text{idf}(q_i) \cdot \frac{f(q_i, D) \cdot (k_1 + 1)}{f(q_i, D) + k_1 \cdot \left(1 - b + b \cdot \frac{|D|}{\text{avgDL}}\right)}
-\label{eq:bm25}
+\mathbf{c} = \frac{1}{n} \sum_{i=1}^{n} \mathbf{v_i}
+\label{eq:centroid}
 \end{equation}
 
-Variações da BM25 são o estado da arte na representação vetorial esparsas de documentos e, por esse motivo, essa função ainda é largamente implementada em sistemas de recuperação de informações \cite{}. Apesar de performar satisfatoriamente nesses sistemas, em termos de relevância dos documentos retornados, métodos que usam vetores densos têm superado métodos que usam vetores esparsos em algumas tarefas de recuperação de informação. \cite{thakur-2021-BEIR}
+Dessa forma, a similaridade entre $d$ e $V$ é dada por $\cos⁡ (\mathbf{u},\mathbf{c})$ .
+
+A escolha da forma de comparação, entretanto, vai depender da arquitetura do modelo e de seu treinamento. Alguns modelos são treinados para serem usados com produto interno, outros com cálculo de cosseno e, para outros, não vai fazer qualquer diferença.
+
+Desde a publicação do texto de referência usado para a elaboração dessa seção \cite{}, diversas soluções de software que cuidam do \textit{pipeline} de \textit{dense retrieval}, popularmente chamadas bases de dados vetoriais, surgiram.
+que se baseiam na geração de representações densas de texto seguida da comparação de similaridade entre a representação densa de uma consulta e dos textos.
+% https://www.youtube.com/watch?v=Mt7UJNKxscA&list=PLSg1mducmHTPZPDoal4m59pPxxsceXF-y&index=7
+
+
+
+Modelos pré-treinados só passaram a ser usados em problemas de busca e ranqueamento de texto com modelos baseados na arquitetura Transformers \cite{}
+\footnote{Como descrevem os autores \citeauthor{}, a partir de Outubro de 2019 alguns artigos de blog do Google e Microsoft reportam a utilização de modelos de linguagem para melhorar a busca em seus serviços.}
+\cite{DBLP:journals/corr/abs-1810-04805}
+Uma grande vantagens dessas novas arquiteturas é sua generalização para diferentes tarefas de IR e para diferentes conjuntos de dados. \cite{}
+Com isso, é possível usar modelos pré-treinados para alcançar bons resultados em conjuntos de dados diferentes daqueles para os quais os modelos foram treinados. \cite{}
+
+Desses modelos, BERT \cite{} é o mais representativo desta leva de modelos de linguagem.
+Como colocado pelos autores \citeauthor{}, BERT se destacou por ``reunir muitos ingredientes cruciais para produzir enormes saltos na eficácia de uma ampla gama de tarefas de processamento de linguagem natural''.
+Em um movimento inspirado por BERT, vários outros modelos de linguagem surgiram a partir de 2019, expandindo o estado da arte em tarefas de geração de representações densas de texto.
+
+Tanto pesquisadores \cite{}, quanto a indústria \cite{}, têm cada vez mais usado comparações entre representações densas de texto para ranquear documentos a partir de uma consulta.
+Ao fim, aprender representações semânticas de um texto é importante para lidar com os problemas de incompatibilidade de vocabulário ou polissemia, mas usar comparações por termos também é importante para lidar com termos raros ou intenções (\textit{intents}). \cite{bhaskar-craswell-2018}
+De acordo com \citeauthor{bhaskar-craswell-2018}, ``na prática um modelo de IR deve sopesar a correspondência exata e inexata para um termo consultado''. Para esses autores, a decisão de que forma de correspondência usar para uma consulta deve considerar o contexto.
+
+% Diversos modelos foram disponibilizados pela biblioteca Sentence Transformers \footnote{}, implementada em Python.
+% Desde então, vários outros modelos pré-treinados são disponibilizados na plataforma Hugging Face \footnote{},
+% apropriados para diferentes tarefas de IR.
+% Nesse trabalho, alguns modelos pré-treinados serão utilizados como base para criação dos embeddings.
+
+% - Diferentes associações ou similaridades
+% - Analogia / Similaridade Relacional
+
+
+
+% ----------------------------------------------------------------------------------------------------------------------
+% TÓPICOS:
+%- Word2vec: pequenos e densos; skip-gram; SGNS; static embeddings;
+% - O problema com Word2Vec e Contextual Embeddings
+%- Dynamic Contextual Embeddings
+% ----------------------------------------------------------------------------------------------------------------------
+
+% [2]
+
+% Quanto maior a dimensionalidade do embedding maior a qualidade dele.
+
+% OpenAI and Cohere embeddings, which require a paid API call to generate them, can be considered higher quality due to a dimensionality of a few thousand.
+
+% One reason it makes sense to use a paid API to generate embeddings is if your data is multilingual (Cohere is known to possess high-quality multilingual embedding models that **[are known to perform better](https://docs.cohere.com/docs/multilingual-language-models#model-performance)** than open source variants).
+
+% E se, ao invés de criar mais embeddings, eu mudar a dimensionalidade do embedding?
+
+% In his excellent review post**[3](https://thedataquarry.com/posts/vector-db-2/#fn:3)**, Colin Harman describes how a lot of companies, due to the plethora of vector DB marketing material out there today, experience “tunnel vision” when it comes to the search & retrieval landscape. As practitioners, we have to remember that vector databases are not the panacea of search – they are very good at *semantic* search, but in many cases, traditional keyword search can yield more relevant results and increased user satisfaction**[4](https://thedataquarry.com/posts/vector-db-2/#fn:4)**. Why is that? It’s largely to do with the fact that ranking based on metrics like cosine similarity causes results that have a higher similarity score to appear above partial matches that may contain specific input keywords, reducing their relevance to the end user.
+
+% *Cross Encoders Models →* usar depois dos Bi-directional?
+
+% including an agent-based framework like LangChain
+
+% - o que melhora um embedding? Um embedding parece melhorar quando eu divido mais um grande texto. Mas o embedding também piora quando eu diminuo até um nível atômico, então existe um ponto ótimo. Qual o ponto ótimo? Eu acredito que sejam níveis que contêm um núcleo semântico. Então keywords deveriam ser divididas por letras maíusculas em um PDF, a não ser que elas sejam uma sigla. Ainda, nem todas as keywords seguem esse padrão, mas acho que só de pegar alguns já é uma vantagem. As frases podem ser divididas entre ponto. E o título é um ponto só.
+% - Os embeddings ignoram stop words? Segundo esse link sim: https://github.com/UKPLab/sentence-transformers/issues/383. Eu consegui replicar isso:
+% Outras Referências
+% [2]https://thedataquarry.com/posts/vector-db-2/#how-are-embeddings-generated
+% [3]https://techcrunch.com/sponsor/nvidia/how-the-revolution-of-natural-language-processing-is-changing-the-way-companies-understand-text/
+% [4] https://qdrant.tech/articles/hybrid-search/
+% [5] https://colinharman.substack.com/p/beware-tunnel-vision-in-ai-retrieval
+% [6] https://thedataquarry.com/posts/vector-db-2/#fn:4
+
+% https://www.sbert.net/examples/domain_adaptation/README.html?highlight=fine%20tuning
 
 % Information retrieval is the process of searching and returning relevant documents for a query from
 % a collection. In our paper, we focus on text retrieval and use document as a cover term for text of
@@ -649,12 +889,6 @@ Variações da BM25 são o estado da arte na representação vetorial esparsas d
 % lexical approaches. In this section, we highlight a few neural-based approaches and we refer the
 % reader to Lin et al. [37] for a recent survey in neural retrieval
 % https://arxiv.org/pdf/2104.08663.pdf
-
-
-% Isso ocorre porque vetores densos têm uma capacidade maior de representar similaridade semântica,
-Isso ocorre porque vetores esparsos têm uma boa capacidade de representar documentos para uma comparação por similaridade textual, mas não para similaridade semântica. Como se pode imaginar pela definição acima, para o caso em que o documento relevante contém palavras sinônimas, ou ideias semelhantes, mas não uma distribuição de palavras similar à da consulta, a busca BM25 torna-se insatisfatória. \cite{thakur-2021-BEIR} Para os casos em que a busca semântica é necessária, existem os vetores densos.
-% Pesquisar: lexical gap
-
 
 %[COMENTÁRIO: mas isso nao considera o tamanho do documento... Eu entendo que squash com logaritmo acaba normalizando tambem,
 %mas a ideia deveria ser normalizar dentro de um documento, pegar a frequencia dentro do documento.]
@@ -693,124 +927,122 @@ Isso ocorre porque vetores esparsos têm uma boa capacidade de representar docum
 % ``aumentar a probabilidade de contextos raros e diminuir o PMI ($P_{\alpha} > P(c)$ quando $c$ é raro)''
 % \cite{JurafskyMartin2023} p. 118.
 
-\subsection{Vetores Densos (\textit{embeddings})}\label{subsec:vetores-densos-embeddings}
 
-A solução proposta para o problema de abordagens léxicas (\textit{lexical gap}) foi a utilização de redes neurais para criar representações vetoriais densas (\textit{embeddings}) em que palavras seriam mapeadas para um espaço vetorial n-dimensional.
+\section{Avaliando a Qualidade de um IRM: Métricas de Ranqueamento}\label{sec:metricas-de-ranqueamento}
 
-A primeira arquitetura representativa de técnicas modernas de geração de vetores densos foi proposta por \citeauthor{mikolov2013efficient}. O modelo criado pelos autores, denominado Word2vec, foi capaz de criar representações de palavras que captavam significado semântico que ia além da semântica extraída da sintática. Além disso, operações algébricas com as representações vetoriais geradas pelo modelo eram traduzidas em operações semânticas.
+A relevância é o principal critério para avaliar a qualidade do ranqueamento.
+Sua natureza subjetiva e dinâmica requer avaliação dentro do contexto específico do sistema de recuperação de informação,
+com base em métricas predefinidas.
+Portanto, necessita-se saber aprioristicamente a relevância de um documento para uma consulta.
+Isso é feito por meio de julgamentos de relevância.
 
-% https://www.youtube.com/watch?v=Mt7UJNKxscA&list=PLSg1mducmHTPZPDoal4m59pPxxsceXF-y&index=7
+Julgamentos de relevância (\textit{relevance judgments}) são avaliações humanas da relevância de uma coleção de texto para uma consulta.
+Julgamentos de relevância servem a dois propósitos, podem ser usados para treinar um modelo de ranqueamento,
+ou podem ser usados para avaliar funções de ranqueamento. \cite{}
 
-A partir disso, novas arquiteturas foram propostas para a geração de embeddings de texto \cite{}, dentre as quais destacam-se as arquiteturas baseadas na arquitetura de transformers Transformers \cite{}, arquitetura introduzida pelos autores \citeauthor{}, e que implementou inovações de arquitetura que expandiram o estado da arte em resultados de diversas tarefas de PNL. \cite{DBLP:journals/corr/abs-1810-04805}
+Julgamentos de relevância são também chamados de qrels e representados por um conjunto de triplas $(q, d, r)$, onde $q$ é uma consulta, $d$ é um documento e $rel(q, d) = r$
+é um julgamento de relevância do documento $d$ para uma consulta $q$.
+Em geral, $rel(q, d) = r \in \{0, 1, 2, 3, 4\}$, onde $r = 0$ significa que $d$ não possui qualquer relevância para $q$ e $r = 4$ significa que
+$d$ é muito relevante para $q$.
 
-Essas novas arquiteturas deram início
+Em um problema de ranqueamento, a ordem é relevante porque se presume que o usuário não consumirá muito mais do que
+10 ou 20 resultados para sua busca.
+Esse argumento é apoiado por diversas pesquisas que afirmam que o usuário de um mecanismo de busca de páginas web dificilmente vai além da 2 página. \cite{}
 
+É comum, portanto, apresentar uma métrica com uma lista $R$ cortada de 10 ou 20 resultados mais relevantes retornados pela consulta.
+Quando isso acontece, é comum representar com a notação Métrica@$k$, onde $k$ é o tamanho da lista $R$ truncada. \cite{}
 
-% - Diferentes associações ou similaridades
-% - Analogia / Similaridade Relacional
-
-% ----------------------------------------------------------------------------------------------------------------------
-% TÓPICOS:
-%- Word2vec: pequenos e densos; skip-gram; SGNS; static embeddings;
-% - O problema com Word2Vec e Contextual Embeddings
-%- Dynamic Contextual Embeddings
-% ----------------------------------------------------------------------------------------------------------------------
-
-% [2]
-
-% Quanto maior a dimensionalidade do embedding maior a qualidade dele.
-
-% OpenAI and Cohere embeddings, which require a paid API call to generate them, can be considered higher quality due to a dimensionality of a few thousand.
-
-% One reason it makes sense to use a paid API to generate embeddings is if your data is multilingual (Cohere is known to possess high-quality multilingual embedding models that **[are known to perform better](https://docs.cohere.com/docs/multilingual-language-models#model-performance)** than open source variants).
-
-% E se, ao invés de criar mais embeddings, eu mudar a dimensionalidade do embedding?
-
-% In his excellent review post**[3](https://thedataquarry.com/posts/vector-db-2/#fn:3)**, Colin Harman describes how a lot of companies, due to the plethora of vector DB marketing material out there today, experience “tunnel vision” when it comes to the search & retrieval landscape. As practitioners, we have to remember that vector databases are not the panacea of search – they are very good at *semantic* search, but in many cases, traditional keyword search can yield more relevant results and increased user satisfaction**[4](https://thedataquarry.com/posts/vector-db-2/#fn:4)**. Why is that? It’s largely to do with the fact that ranking based on metrics like cosine similarity causes results that have a higher similarity score to appear above partial matches that may contain specific input keywords, reducing their relevance to the end user.
-
-% *Cross Encoders Models →* usar depois dos Bi-directional?
-
-% including an agent-based framework like LangChain
-
-% - o que melhora um embedding? Um embedding parece melhorar quando eu divido mais um grande texto. Mas o embedding também piora quando eu diminuo até um nível atômico, então existe um ponto ótimo. Qual o ponto ótimo? Eu acredito que sejam níveis que contêm um núcleo semântico. Então keywords deveriam ser divididas por letras maíusculas em um PDF, a não ser que elas sejam uma sigla. Ainda, nem todas as keywords seguem esse padrão, mas acho que só de pegar alguns já é uma vantagem. As frases podem ser divididas entre ponto. E o título é um ponto só.
-% - Os embeddings ignoram stop words? Segundo esse link sim: https://github.com/UKPLab/sentence-transformers/issues/383. Eu consegui replicar isso:
-% Outras Referências
-% [2]https://thedataquarry.com/posts/vector-db-2/#how-are-embeddings-generated
-% [3]https://techcrunch.com/sponsor/nvidia/how-the-revolution-of-natural-language-processing-is-changing-the-way-companies-understand-text/
-% [4] https://qdrant.tech/articles/hybrid-search/
-% [5] https://colinharman.substack.com/p/beware-tunnel-vision-in-ai-retrieval
-% [6] https://thedataquarry.com/posts/vector-db-2/#fn:4
-
-\subsection{Domain Adaptation}
-
-% https://www.sbert.net/examples/domain_adaptation/README.html?highlight=fine%20tuning
-
-
-\subsection{Similaridade Entre Documentos}\label{subsec:similaridade-entre-documentos}
-
-Depois de representar documentos por meio de vetores,
-a similaridade entre documentos pode ser medida através de operações de álgebra linear que medem
-similaridade entre vetores.
-
-Uma forma comum de medir a similaridade entre dois vetores é através do produto interno, definido por:
+Quando a ordem dos documentos recuperados é irrerelevante,
+ou seja, quando a relevância de um documento é tratada como binária,
+métricas usadas na avaliação da relevância da
+informação são precisão e recall, ou variações estatísticas dessas.
+Precisão avalia a ``solidez'' do sistema, provendo uma medida para a proporção de documentos relevantes dentre os
+recuperados. Precisão é definida por:
 
 \begin{equation}
-\text{dot}(\mathbf{u}, \mathbf{v})  = \mathbf{u} \cdot \mathbf{v} = \sum_{i}u_{i}v_{i}
-\label{eq:dot_product}
+    \text{Precisão}(R,q) = \frac{\sum_{(i,d)\in R} \text{rel}(q,d)}{|R|}
 \end{equation}
 
-Uma interpretação para o resultado do produto interno é a medição de quanto um vetor $u$ está no mesmo sentido e direção de outro vetor $v$. Essa é uma interpretação conveniente para compreender a medida de similaridade entre duas representações vetoriais de texto.
-
-Um problema de realizar medições com o produto interno é comparar similaridades, pois $dot(u,v)$ pode ser arbitrariamente grande ou pequeno a depender dos valores dos componentes $u_i$ e $v_i$ dos vetores. Nesse caso, pode parecer mais sensato calcular o produto interno com vetores normalizados, o que resulta no valor do cosseno do ângulo entre os vetores e leva todas as comparações
-a um intervalo entre 0 e 1, uma vez $v_i, u_i \geq 0, \forall i$:
+Recall avalia a ``completude'' do sistema, provendo uma medida para a proporção de documentos relevantes que não
+foram recuperados. Recall é definida por:
 
 \begin{equation}
-\cos (\mathbf{u}, \mathbf{v})  = \frac{\mathbf{u} \cdot \mathbf{v}}{\|\mathbf{u}\| \|\mathbf{v}\|}
-\label{eq:cosine_similarity}
+    \text{Recall}(R,q) = \frac{\sum_{(i,d)\in R} \text{rel}(q,d)}{\sum_{d\in C} \text{rel}(q,d)}
 \end{equation}
 
-Assim, é possível comparar similaridades entre diferentes vetores de palavras.
-Quanto mais próximo de 1 for o resultado, mais similares são os termos comparados.
-Essa técnica funciona para qualquer modelo vetorial de texto.
+% Sejam \textit{true positives} (TP) os documentos relevantes e recuperados,
+% \textit{false positives} (FP) os que não são relevantes e foram recuperados,
+% \textit{true negatives} (TN) os que não são relevantes e não foram recuperados,
+% \textit{false negatives} (FN) os documentos que são relevantes e não foram recuperados,
+% então precisão e recall podem ser descritos como
+% $$P = \frac{TP}{TP + FP}$$
+% $$R = \frac{TP}{TP + FN}$$
+% Um sistema ideal deveria ter alta precisão e alto recall, próximos de 1, minimizando o número de FP e FN.
+% Entretanto, isso nem sempre é possível, já que geralmente existe um \textit{trade-off} entre precisão e recall. [5 p.8]
+% As métricas apresentadas acima não levam em consideração a ordem dos documentos retornados, e funcionam bem para avaliar sistemas que retornam conjuntos de documentos em qualquer ordem.
+% Nem todos os sistemas de recuperação de informação se inserem nesse contexto.
+% Para alguns sistemas, a ordem, ou \textit{rank}, é uma qualidade importante para a recuperação.
+% Nesses casos, outras métricas devem ser consideradas, como o ganho de precisão ao aumentar a recall, \textit{Average Precision} (AP), ou a precisão em relação aos primeiros k documentos, \textit{Precision at k} (P@k).
+% É isso que a precisão média calcula
+% $$\text{AP} = \frac{1}{\text{R}} \sum_{k=1}^n P(k) \times \text{rel}(k)$$
+% A precisão média calcula a precisão ao longo de diferentes k-cortes do resultado, somando e obtendo a média das precisões obtidas.
 
-No caso da similaridade entre um documento $d$ e um conjunto de documentos $V$, tal que $V = \{\mathbf{v_1}, \mathbf{v_2}, ... \mathbf{v_n}\}$,
-pode-se calcular o cosseno entre a representação de $d$, denotada por $\mathbf{u}$, e o centróide $\mathbf{c}$ de $V$, dado por:
+É possível, ainda, balancear ambas as métricas com uma média harmônica, métrica chamada de \textit{F-measure} ou com Precisão Média (\textit{AP -- Average Precision}).
+
+Para o problema de ranqueamento, a métrica mais relevante é o Ganho Acumulado com Desconto Normalizado (\textit{nDCG -- Normalized Discounted Cumulative Gain)}, métrica ``especificamente desenvolvida para julgamentos de relevância graduados''.\cite{}
+
+O Ganho Acumulado com Desconto (\textit{DCG -- Discounted Cumulative Gain}) para uma lista ranqueada $R = {(d_i, d_i)}$ é definido como:
 
 \begin{equation}
-\mathbf{c} = \frac{1}{n} \sum_{i=1}^{n} \mathbf{v_i}
-\label{eq:centroid}
+    \text{DCG}(R,q) = \sum_{(i,d)\in R}\frac{2^{rel(q,d)} - 1}{\log_{2}(i+1)}
 \end{equation}
 
-Dessa forma, a similaridade entre $d$ e $V$ é dada por $\cos⁡ (\mathbf{u},\mathbf{c})$ .
+A DCG é capaz de medir um ganho baseado na posição do documento recuperado por uma consulta, premiando quando um documento relevante aparece no topo da busca e penalizando quando aparece no fim da busca.
+Isso porque, quanto maior $i$, maior o desconto sobre o numerador que computa a relevância.
 
-A escolha da forma de comparação, entretanto, vai depender da arquitetura do modelo e de seu treinamento. Alguns modelos são treinados para serem usados com produto interno, outros com cálculo de cosseno e, para outros, não vai fazer qualquer diferença.
+O nDCG é definido por:
 
-% Por exemplo,
-%[TODO: CRIAR UM EXEMPLO EM PYTHON E USAR].
+\begin{equation}
+    \text{nDCG}(R,q) = \frac{\text{DCG}(R,q)}{\text{IDCG}(R,q)}
+\end{equation}
+
+onde IDCG representa o valor DCG para $R$ ideal para uma consulta $q$.
+Assim, nDCG é um valor entre [0, 1], uma vez que DCG $\leq$ nDCG.
+
+Essas métricas estão eficientemente implementadas na biblioteca trec\_eval
+\footnote{https://github.com/usnistgov/trec\_eval}
+, biblioteca bastante usada por
+pesquisadores da área de recuperação de informação.
+
+Algumas considerações devem ser feitas sobre sistemas especificos para recuperacao de literatura academica.
+
 
 \section{Arquitetura de um Sistema de Recuperação de Informação}
 \label{sec:arquitetura-de-um-sistema-de-recuperacao-de-informacao}
 
-Acima foram discutidas abordagens diferentes para a descrição de um IRM.
-Como explicado, modelos diferentes de IRM servem a propósitos diferentes e variam a depender das
-características dos documentos, das características dos usuários, da forma de consultar usada por esses usuários e da estratégia usada para recuperar e ranquear um documento
-na coleção.
+Até esta seção foram discutidos os IRMs como esboços de um IRS.
+Nesta seção serão explicados detalhes da implementação de cada um dos IRMs descritos.
+Acima foram tangenciadas questões de eficiência sob a ótica dos IRMs descritos, mas nada sobre a ótica da implementação dos IRMs.
+Nesta seção, aproveito para descrever, em alto nível, como deve funcionar um IRS e como um IRS poderia implementar os IRMs descritos.
+Aproveito para introduzir reflexões sobre robustês, sensibilidade e eficiência na implementação de um IRS.
 
-Da forma semelhante, a arquitetura de um IRS depende dos IRMs usados como base teórica, além dos aspectos concretos
-avaliados no desenvolvimento de software.
-A concepção dessa arquitetura e de seus elementos tem variado principalmente nos últimos anos,
-com uma nova descrição dos estágios da recuperação de informação pela indústria,
-baseados na introdução de vetores densos, por meio de modelos de recuperação e ranqueamento treinados por redes neurais, também chamada de busca profunda \cite{}, ou busca neural \cite{}, ou busca baseada em \textit{embeddings} \cite{}.
+Como discutido anteriormente, diferentes IRMs atendem a propósitos distintos. Eles variam conforme as características dos documentos, as especificidades das consultas feitas pelos usuários e a estratégia adotada para recuperar e ranquear documentos na coleção.
 
-Uma arquitetura de um IRS deve considerar o caso concreto, mas é possível identificar ``elementos
+Analogamente, a arquitetura de um IRS é moldada pelos IRMs que servem como fundamentação teórica, bem como pelos aspectos práticos considerados no desenvolvimento de software.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+Ainda assim, é possível identificar ``elementos
 universais'' nas arquiteturas desses sistemas.
 Tais ``elementos universais'' são discutidos a seguir, denominados ``componentes'' do sistema, conforme demonstrado na figura \ref{fig:irs-arquitetura},
 em que as setas representam o fluxo de dados.
 
 \begin{figure}
     \centering
-    \includegraphics{}
-    \caption{Arquitetura de um Sistema de Recuperação de Informação}
+    \includegraphics[width=0.8\textwidth]{figuras/arq-bas-1.png}
+    \caption{Arquitetura Básica de um Sistema de Recuperação de Informação}
     \label{fig:irs-arquitetura}
 \end{figure}
 
@@ -824,27 +1056,19 @@ realizada pelo Componente de Indexação.
 Nesse componente, os dados são armazenados em uma estrutura chamada índice, que permite ao sistema recuperar
 rapidamente os documentos relevantes.
 
-A interface do usuário, onde as consultas são inseridas, faz parte do Componente de Consulta.
-Este sistema recebe as consultas dos usuários e as traduz em comandos que podem ser executados pelo sistema de busca.
-O mecanismo pode aplicar algoritmos e heurísticas para processar a consulta e melhorar seus resultados.
-
 É no Componente de Recuperação onde a consulta é executada para recuperar do índice.
 É aqui onde são implementados algoritmos para determinar os resultados mais relevantes para a consulta.
 Os resultados são, depois de recuperados, ranqueados e retornados ao usuário.
 
-Para o projeto proposto nesse estudo, o componente mais relevante para a discussão das novas técnicas de busca profunda são os Componentes de Indexação e de Recuperação, uma vez que suas implementações afetam mais diretamente a qualidade de um IRS, afetando a forma que a relevância dos documentos é computada e a velocidade com que essa relevância é computada.
+A interface do usuário, onde as consultas são inseridas, faz parte do Componente de Consulta.
+Este sistema recebe as consultas dos usuários e as traduz em comandos que podem ser executados pelo sistema de busca.
+O mecanismo pode aplicar algoritmos e heurísticas para processar a consulta e melhorar seus resultados.
 
-Nada obstante, os demais componentes do sistema de recuperação serão tangenciados, principalmente na medida em que afetam os principais componentes acima. Dito isso, discute-se as técnicas tradicionais e as novas técnicas de implementação dos Componentes de Indexação e de Recuperação.
+Para o projeto proposto nesse estudo, os componente mais relevantes para a discussão dos IRMs propostos são os Componentes de Indexação, responsável criação e armazenamento das representações de documentos, e de Recuperação, responsável pela forma que a relevância dos documentos é computada. Ambos são responsáveis pela velocidade com que consulta é efetuada.
 
-\subsection{Componente de Ingestão de Dados}\label{}
+\subsection{Arquitetura Tradicional de um Sistema de Recuperação de Informação}\label{}
 
-\subsection{Componente de Indexação}\label{subsec:componente-de-indexação}
-
-
-\subsection{Componente de Recuperação}\label{subsec:componente-de-recuperação}
-
-
-\section{Avaliação do Sistema de Recuperação de Informação}\label{sec:avaliacao-do-sistema-de-recuperacao-de-informacao}
+\subsection{Arquitetura de um Sistema de Recuperação Profunda}\label{}
 
 % Ler: https://arxiv.org/pdf/2104.08663.pdf
 % https://arxiv.org/pdf/2206.12993.pdf
@@ -853,68 +1077,6 @@ Nada obstante, os demais componentes do sistema de recuperação serão tangenci
 %      https://www.youtube.com/watch?v=EnlLr6S7c5A
 %      https://towardsdatascience.com/demystifying-ndcg-bee3be58cfe0
 %      https://mariofilho.com/ndcg-normalized-discounted-cumulative-gain-em-machine-learning/
-
-A relevância é o principal critério para avaliar a qualidade da informação recuperada.
-Sua natureza subjetiva e dinâmica requer avaliação dentro do contexto específico do sistema de recuperação de informação,
-com base em métricas predefinidas.
-
-Quando a ordem dos documentos recuperados não é relevante, métricas comumente usadas na avaliação da relevância da
-informação são precisão e recall.
-É possível, ainda, balancear ambas as métricas com uma média harmônica, métrica chamada de \textit{F-measure}.
-[5]
-
-Precisão avalia a ``solidez'' do sistema, provendo uma medida para a proporção de documentos relevantes dentre os
-recuperados.
-Recall avalia a ``completude'' do sistema, provendo uma medida para a proporção de documentos relevantes que não
-foram recuperados.
-[5]
-
-Sejam \textit{true positives} (TP) os documentos relevantes e recuperados,
-\textit{false positives} (FP) os que não são relevantes e foram recuperados,
-\textit{true negatives} (TN) os que não são relevantes e não foram recuperados,
-\textit{false negatives} (FN) os documentos que são relevantes e não foram recuperados,
-então precisão e recall podem ser descritos como
-
-$$P = \frac{TP}{TP + FP}$$
-
-$$R = \frac{TP}{TP + FN}$$
-
-Um sistema ideal deveria ter alta precisão e alto recall, próximos de 1, minimizando o número de FP e FN.
-Entretanto, isso nem sempre é possível, já que geralmente existe um \textit{trade-off} entre precisão e recall. [5 p.8]
-
-As métricas apresentadas acima não levam em consideração a ordem dos documentos retornados, e funcionam bem para avaliar sistemas que retornam conjuntos de documentos em qualquer ordem.
-Nem todos os sistemas de recuperação de informação se inserem nesse contexto.
-Para alguns sistemas, a ordem, ou \textit{rank}, é uma qualidade importante para a recuperação.
-Nesses casos, outras métricas devem ser consideradas, como o ganho de precisão ao aumentar a recall, \textit{Average Precision} (AP), ou a precisão em relação aos primeiros k documentos, \textit{Precision at k} (P@k).
-É isso que a precisão média calcula
-$$\text{AP} = \frac{1}{\text{R}} \sum_{k=1}^n P(k) \times \text{rel}(k)$$
-A precisão média calcula a precisão ao longo de diferentes k-cortes do resultado, somando e obtendo a média das precisões obtidas.
-% TODO: Falar também sobre MAP.
-O problema dessas abordagens é que elas tratam a relevância de um documento como algo binário, não supondo um ranqueamento entre os documentos.
-
-Uma forma mais eficiente de avaliar sistemas de recuperação baseados em ranqueamento é avaliar os documentos sob uma escala de relevância.
-A construção dessa escala se dá pela classificação dos melhores resultados para buscas específicas e sua avaliação pela medição da qualidade dos resultados baseados em pontuações para o ranqueamento.
-Uma boa métrica para testar isso é a \textit{Discounted Cumulative Gain} (DCG).
-A DCG é capaz de medir um ganho baseado na posição do documento recuperado por uma busca, premiando quando um documento relevante aparece no topo da busca e penalizando quando aparece no fim da busca. Para $rel_i$ a relevância avaliada do resultado na posição $i$, a DCG é descrita como
-
-$$\text{DCG} = \sum_{k=1}^n \frac{\text{rel}(k)}{\log_2(k + 1)}$$
-
-
-
-% ---------------------------------------------------------------------------------------------------------------------------------------
-%
-%
-% NADA MUDOU A PARTIR DAQUI
-%
-%
-%
-% ---------------------------------------------------------------------------------------------------------------------------------------
-
-
-
-
-
-
 
 
 \chapter{Implementação do Sistema de Recuperação de Informação de Teses}

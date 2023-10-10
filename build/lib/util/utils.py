@@ -18,6 +18,7 @@ limitations under the License.
 
 import os
 import pickle
+import glob
 import time
 from typing import Optional
 import requests
@@ -117,6 +118,15 @@ def embeddings_save(
     torch.save(embeddings, path)
 
 
+def embeddings_load(model_name: str, tokens_type: str, language: str) -> torch.tensor:
+    model_name = model_name.replace("/", "-")
+    path = embeddings_path(model_name, tokens_type, language)[0:-3] + "*"
+    filenames = [filename for filename in glob.glob(path)]  # unordered filenames
+    ordered_embeddings_paths = [embeddings_path(model_name, tokens_type, language, i) for i in range(len(filenames))]
+    embeddings: list[torch.tensor] = [torch.load(path) for path in ordered_embeddings_paths]
+    return torch.cat(embeddings)
+
+
 def indices_load(token_type: str, language: str, save_dir: str = config.INDICES_DIR) -> tuple[list[int], list[int]]:
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)
@@ -194,7 +204,3 @@ def flatten_nested(ds):
             for i in range(len(node) - 1, -1, -1):
                 stack.append(node[i])
     return flat_ds
-
-
-def weaviate_class_name(model_name, token_type):
-    return f"{model_name.replace('-', '').replace('/', '')}{token_type.replace('_', '')}"

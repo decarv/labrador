@@ -23,8 +23,7 @@ from psycopg2.extras import RealDictRow
 from torch.cuda import OutOfMemoryError
 import nvidia_smi
 
-import config
-from index.tokenizer import Tokenizer
+import labrador.config
 from util import database, log
 
 logger = log.configure_logger(__file__)
@@ -33,12 +32,14 @@ log = log.log(logger)
 
 class Encoder:
     @log
-    def __init__(self, model_name: str, cache: bool = True):
+    def __init__(self, model_name: str, token_type: str, language: str = "pt", cache: bool = True):
         logger.debug("Initializing encoder...")
 
         self.cache = cache
         self.device = 'cuda:0'
-        self.model_name = model_name
+        self.language = language
+        self.token_type = token_type
+        self.model_name = model_name.split("/")[-1]
         self.model = SentenceTransformer(model_name, device=self.device, cache_folder=config.MODEL_CACHE_DIR)
 
         nvidia_smi.nvmlInit()
@@ -151,9 +152,13 @@ class Encoder:
 if __name__ == "__main__":
     chunk_size: int = 1024 * 4
     languages = ["pt"]
-    token_types = Tokenizer.token_types()
-    for model in config.MODELS:
-        logger.info(f"main: Model: {model}")
-        encoder: Encoder = Encoder(model_name=model)
-        tokens_generator: Iterator[list[RealDictRow]] = database.tokens_chunk_generator(encoder.model_name)
-        encoder.encode(tokens_generator)
+    token_types = ["sentence_with_keywords"]  # TODO: replace for Tokenizer.token_types()
+    for language in languages:
+        logger.info(f"main: Language {language}")
+        for token_type in token_types:
+            logger.info(f"main: Token Type: {token_type}")
+            for model in config.MODELS:
+                logger.info(f"main: Model: {model}")
+                encoder: Encoder = Encoder(model_name=model, token_type=token_type)
+                tokens_generator: Iterator[list[RealDictRow]] = database.tokens_chunk_generator(encoder.model_name)
+                encoder.encode(tokens_generator)

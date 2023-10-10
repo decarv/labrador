@@ -13,15 +13,16 @@ from search.searcher import Searcher
 
 import config
 from search.searcher import LocalNeuralSearcher
-from util.utils import embeddings_load, indices_load, load_metadata_from_csv
+from util.utils import indices_load, load_metadata_from_csv
+from util.database import embeddings_read
 from util.log import log
 
 units_type = "sentences"
 language = "pt"
-model_name = config.MODELS[1]
+model_name = config.MODELS[0]
 
 data = load_metadata_from_csv()
-embeddings = embeddings_load(model_name=model_name, tokens_type=units_type, language=language)
+embeddings = embeddings_read(model_name=model_name, token_type=units_type, language=language)
 encoder_model = SentenceTransformer(model_name, device='cuda', cache_folder=config.MODEL_CACHE_DIR)
 imap = indices_load(token_type=units_type, language=language, save_dir=config.INDICES_DIR)
 
@@ -54,6 +55,7 @@ app.mount("/app", StaticFiles(directory="app"), name="static")
 @app.get("/search")
 async def search():
     return FileResponse("search.html")
+
 
 @app.get("/experiments")
 async def experiment(query: str):

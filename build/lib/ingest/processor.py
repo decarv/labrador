@@ -86,10 +86,10 @@ class Processor:
                 decoder=json.loads,
                 schema='pg_catalog'
             )
-            data_records = await conn.fetch(f"SELECT * FROM data ORDER BY id;")
-            df: pd.DataFrame = pd.DataFrame([dict(record) for record in data_records])
-            df = self._clean_dataframe(df)
-            records_to_insert = [row[1] for row in df.iterrows()]
+            metadata_records = await conn.fetch(f"SELECT * FROM metadata ORDER BY id;")
+            metadata_df: pd.DataFrame = pd.DataFrame([dict(record) for record in metadata_records])
+            metadata_df = self._clean_dataframe(metadata_df)
+            records_to_insert = [row[1] for row in metadata_df.iterrows()]
             async with conn.transaction():
                 await conn.executemany(insert_query, records_to_insert)
 

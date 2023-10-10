@@ -17,26 +17,24 @@ limitations under the License.
 """
 
 import os
-import heapq
 import logging
 from typing import Union
 
 import numpy as np
-import sentence_transformers.util
 import torch
 from psycopg2.extras import RealDictRow
 from sentence_transformers import SentenceTransformer
 import json
-import weaviate
 from abc import ABC, abstractmethod
 from sentence_transformers.util import semantic_search
 
-
 import config
 import util.database
-from util import utils, database, log
+import util.log
+from util import utils
+from util import log
 
-logger = log.configure_logger(__file__)
+logger = util.log.configure_logger(__file__)
 log = log.log(logger)
 
 
@@ -82,13 +80,13 @@ class KeywordSearcher(Searcher):
         self.indexer = kwargs["indexer"]
 
 
-class NeuralSearcher(Searcher):
-    pass
-
-
 class LocalNeuralSearcher(Searcher):
     """
+    NeuralSearcher implemented in version 0.1.0.
     The LocalNeuralSearcher is a searcher that uses a local infrastructure to retrieve and rank results.
+    The indices and embeddings are loaded from disk into memory.
+
+    The function used to train the model is the Encoder's current local_encode() function.
     """
     def __init__(self, *args, **kwargs):
         super(LocalNeuralSearcher, self).__init__(*args, **kwargs)
@@ -100,71 +98,85 @@ class LocalNeuralSearcher(Searcher):
         self.encoder_model = SentenceTransformer(
             self.model_name, device='cuda', cache_folder=config.MODEL_CACHE_DIR
         )
+        self.data: list[RealDictRow] = kwargs.get('data')
+        self.tokenized_data: list[RealDictRow] = kwargs.get('training_data')
+        self.indices, self.token_indices = utils.indices_load(self.token_type, self.language)
+        self.corpus_embeddings: torch.tensor = util.database.embeddings_read(self.model_name, self.token_type, self.language)
 
-    def _retrieve(self, query: str, top_k: int = 30, similarity_func=sentence_transformers.util.dot_score) -> dict:
+    def _get_token_indices(self) -> list[int]:
+        """
+        Example:
+            indices: [5 5 5 6 6 7 7 7 7 8 9 9 9]
+            token indices: [0 1 2 0 1 0 1 2 3 0 0 1 2]
+        """
+        token_indices: list[int] = []
+        curr_idx: int = -1
+        token_idx: int = 0
+        for idx in self.indices:
+            if idx != curr_idx:
+                token_idx = 0
+                curr_idx = idx
+            token_indices.append(token_idx)
+            token_idx += 1
+        return token_indices
+
+    @log(logger)
+    def _retrieve(self, query: str, top_k: int = 30) -> list[dict]:
+        """
+
+        self.indices is a map from the index of the embedding to the index of the data.
+
+        :param query:
+        :param top_k:
+        :return:
+        """
+        query: str = self.process_query(query)
         query_embeddings: torch.tensor = self.embed_query(query)
-        corpus_embeddings_generator: torch.tensor = database.embeddings_read(
-            self.model_name, self.token_type, self.language, batch_size=128
+        queries_results: list[list[dict[str, Union[int, float]]]] = semantic_search(
+            query_embeddings=query_embeddings,
+            corpus_embeddings=self.corpus_embeddings,
+            top_k=top_k
         )
-        hits: list[list[float, int]] = []  # min heap
-        hits_dict: dict[int, list[int, float]] = {}
-        for batch in corpus_embeddings_generator:
-            logger.info("Processing batch...")
-            embeddings_list = [torch.tensor(r['embeddings']) for r in batch]
-            corpus_embeddings: torch.tensor = torch.stack(embeddings_list)
-            qe = query_embeddings.to(self.device)
-            ce = corpus_embeddings.to(self.device)
-            scores: list[float] = similarity_func(qe, ce)[0]
-            for i, score in enumerate(scores):
-                data_id = batch[i]['data_id']
-                if data_id in hits_dict and score > hits_dict[data_id][0]:
-                    new_hits = []
-                    new_hits_dict = {}
-                    while len(hits) > 0:
-                        hit: list[float, int] = heapq.heappop(hits)
-                        if hit[1] != data_id:
-                            heapq.heappush(new_hits, hit)
-                            new_hits_dict[hit[1]] = hit
-                    hits = new_hits
-                    hits_dict = new_hits_dict
-                elif data_id in hits_dict and score < hits_dict[data_id][0]:
-                    continue
+        if not self.data and not self.tokenized_data:
+            raise ValueError("No data or tokenized data provided for searcher.")
+        hits: list[dict] = []
+        for results in queries_results:
+            for result in results:
+                corpus_id = result['corpus_id']
+                score = result['score']
+                data_index = self.indices[corpus_id]
+                title = self.data[data_index][f'title_{self.language}']
+                abstract = self.data[data_index][f'abstract_{self.language}']
+                keywords = self.data[data_index][f'keywords_{self.language}']
 
-                if len(hits) < top_k or score > hits[0][0]:
-                    hit = [score, data_id]
-                    if len(hits) == top_k:
-                        rm_id = hits[0][1]
-                        heapq.heapreplace(hits, hit)
-                        del hits_dict[rm_id]
-                    else:
-                        heapq.heappush(hits, hit)
-                    hits_dict[data_id] = hit
-                assert len(hits_dict) == len(hits)
-
-        hits = [heapq.heappop(hits) for _ in range(len(hits))][::-1]
-        data_ids = []
-        hits_data: dict = {}
-        for hit in hits:
-            score, data_id = hit
-            data_ids.append(data_id)
-            hits_data[data_id] = {'score': score}
-
-        data = database.data_read_in_ids(data_ids)
-        for record in data:
-            hits_data[record['id']]['data'] = record
-
-        return hits_data
+                token_index = self.token_indices[data_index]
+                token_hit = self.tokenized_data[data_index][f"title_tokens_{self.language}"][token_index]
+                hits.append(
+                    {
+                        'score': score,
+                        'data': {
+                            'title': title,
+                            'abstract': abstract,
+                            'keywords': keywords
+                        },
+                        'token_hit': token_hit
+                    }
+                )
+        return hits
 
     def process_query(self, query):
         return query
 
+    @log(logger)
     def embed_query(self, query):
         vector: np.ndarray = self.encoder_model.encode(query, show_progress_bar=False, convert_to_tensor=True)
         return vector
 
+    @log(logger)
     def _rank(self, hits):
         return hits
 
+    @log(logger)
     def _filter(self, hits, _filters=None):
         return hits
 
@@ -172,10 +184,10 @@ class LocalNeuralSearcher(Searcher):
         pass
 
     def save(self, hits: list[dict[str]]):
-        normalized_model_name = self.model_name.replace("/", "-")
         with open(os.path.join(
                 config.RESULTS_DIR,
-                f"{__class__.__name__}_{normalized_model_name}_{self.token_type}_{self.language}.json"), "a") as f:
+                f"search_results_{self.model_name}_{self.token_type}_{self.language}.json"
+        ), "w") as f:
             f.write(json.dumps(hits))
 
 #
@@ -279,12 +291,14 @@ class LocalNeuralSearcher(Searcher):
 
 if __name__ == "__main__":
     model = config.MODELS[0]
-    query = "ataque cardíaco"
-    database.initialize_conn_pool(4, 10)
-    ls = LocalNeuralSearcher(
-        model_name=model,
-        token_type="sentence_with_keywords",
-        language="pt",
-    )
-    hit_list = ls.search(query)
-    print(hit_list)
+    query = "computação em nuvem"
+    for model in config.MODELS:
+        ls = LocalNeuralSearcher(
+            model_name=model,
+            token_type="sentence_with_keywords",
+            language="pt",
+            data=util.database.table_read("clean_metadata"),
+            training_data=util.database.table_read("clean_tokenized_metadata")
+        )
+        _hits = ls.search(query)
+        ls.save(_hits)
