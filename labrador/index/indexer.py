@@ -20,6 +20,7 @@ from typing import Iterator
 import psycopg2
 from psycopg2.extras import RealDictCursor, RealDictRow
 import weaviate
+import weaviate.gql.get
 
 from index.tokenizer import Tokenizer
 import config
@@ -52,6 +53,10 @@ class DenseIndexer:
             "properties": [
                 {
                     "name": "doc_id",
+                    "dataType": ["int"],
+                },
+                {
+                    "name": "embedding_id",
                     "dataType": ["int"],
                 },
                 {
@@ -92,7 +97,7 @@ class DenseIndexer:
                 logger.info(f"Iniciando batch...{i}")
                 for record in records:
                     batch.add_data_object(
-                        self._create_object(record),
+                        record,
                         class_name=self.class_name,
                         vector=record['embeddings'],
                     )
@@ -100,7 +105,8 @@ class DenseIndexer:
     @staticmethod
     def _create_object(record: RealDictRow) -> dict:
         data_object = {
-            "doc_id": record['id'],
+            "doc_id": record['doc_id'],
+            "embedding_id": record['embedding_id'],
             "title": record['title'],
             "abstract": record['abstract'],
             "keywords": record['keywords'],
@@ -111,20 +117,17 @@ class DenseIndexer:
 
     def records_generator(self):
         select_query: str = """
-                        SELECT d.id, d.title_pt as title, 
+                        SELECT d.id as doc_id, d.title_pt as title, 
                                d.abstract_pt as abstract, d.author, 
-                               d.keywords_pt as keywords, e.embeddings, t.token
+                               d.keywords_pt as keywords, e.embeddings, t.token, e.id as embedding_id
                         FROM embeddings AS e
                         JOIN tokens AS t ON e.token_id = t.id
                         JOIN data AS d ON t.data_id = d.id
                         WHERE e.model_name = %s
                           AND t.token_type = %s
-                          AND d.id > %s
-                        ORDER BY d.id
                         LIMIT %s
                         """
 
-        last_id: int = -1
         model_name = self.model_name
         token_type = self.token_type
         with psycopg2.connect(
@@ -138,13 +141,50 @@ class DenseIndexer:
                 while True:
                     cur.execute(
                         select_query,
-                        (model_name, token_type, last_id, BATCH_SIZE)
+                        (model_name, token_type, BATCH_SIZE)
                     )
                     records = cur.fetchall()
                     if not records:
                         break
-                    last_id = records[-1]['id']
                     yield records
+
+                    self._update_embeddings_in_weaviate(conn, records)
+
+    def _update_embeddings_in_weaviate(self, conn, records: list[RealDictRow]):
+        update_query: str = """
+                        UPDATE embeddings
+                        SET in_weaviate = True
+                        WHERE id = %s
+                        """
+        update_vars_list = [(record['embedding_id'],) for record in records]
+        with conn.cursor() as cur:
+            cur.executemany(update_query, update_vars_list)
+            conn.commit()
+
+    @log
+    def _get_added_ids(self) -> set[int]:
+        query: weaviate.gql.get.GetBuilder = (
+            self.client.query.get(self.class_name, ["doc_id"])
+            .with_additional(["id"])
+            .with_limit(1024)
+        )
+        added_ids: set[int] = set()
+        query_result: dict = query.do()
+        while query_result:
+            query_result: dict = query.do()
+            records: list[dict] = query_result['data']['Get'][self.class_name.capitalize()]
+            if not records:
+                break
+            for record in records:
+                added_ids.add(record['doc_id'])
+            last_uuid = records[-1]['_additional']['id']
+            query = (
+                self.client.query.get(self.class_name, ["doc_id"])
+                .with_additional(["id"])
+                .with_after(last_uuid)
+                .with_limit(1024)
+            )
+        return added_ids
 
 
 if __name__ == '__main__':
