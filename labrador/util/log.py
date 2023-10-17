@@ -63,13 +63,13 @@ def log(logger):
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
             try:
-                logger.info(f"Running {func.__name__}")
+                logger.debug(f"Running {func.__name__}")
                 s = time.time()
                 ret = func(*args, **kwargs)
-                logger.info(f"{func.__name__} took {time.time() - s} seconds")
+                logger.debug(f"{func.__name__} took {time.time() - s} seconds")
                 return ret
             except Exception as e:
-                logger.error(f"Exception raised in function {func.__name__}. Exception: {e}")
+                logger.error(f"Exception raised in function {func.__name__}. Exception: {type(e).__name__} - {e}")
                 raise e
         return wrapper
     return decorator

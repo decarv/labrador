@@ -25,6 +25,7 @@ import pandas as pd
 
 from util import log
 import config
+from models import Webpage
 
 logger = log.configure_logger(__file__)
 log = log.log(logger)
@@ -43,6 +44,9 @@ class Processor:
             (d) non-uniform way to list keywords (separated by ';' or '-' or all in lower-case);
 
     TODO: Implement stemming and lemmatization.
+        - https://www.nltk.org/book/ch03.html
+        - https://www.nltk.org/book/ch05.html
+        - Remove prefix from urls
     """
     def __init__(self):
         pass
@@ -64,9 +68,10 @@ class Processor:
                 abstract_pt, 
                 abstract_en, 
                 publish_date,
-                raw_data_id
+                raw_data_id,
+                url_path_suffix
             ) 
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, to_date($14, 'YYYY-MM-DD'), $15)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, to_date($14, 'YYYY-MM-DD'), $15, $16)
             ON CONFLICT (raw_data_id)
             DO UPDATE SET 
                 keywords_pt = EXCLUDED.keywords_pt;
@@ -86,7 +91,7 @@ class Processor:
                 decoder=json.loads,
                 schema='pg_catalog'
             )
-            data_records = await conn.fetch(f"SELECT * FROM data ORDER BY id;")
+            data_records = await conn.fetch(f"SELECT * FROM raw_data ORDER BY id;")
             df: pd.DataFrame = pd.DataFrame([dict(record) for record in data_records])
             df = self._clean_dataframe(df)
             records_to_insert = [row[1] for row in df.iterrows()]
@@ -131,7 +136,12 @@ class Processor:
         # Clean unwanted substring from author
         df['author'] = df['author'].str.replace("(Catálogo USP)", "")
 
+        # Clean " from titles
+        df['title_pt'] = df['title_pt'].str.strip("\"")
+
         df['keywords_pt'] = df['keywords_pt'].apply(self.clean_keywords)
+
+        df['url_path_suffix'] = df['url'].apply(lambda x: Webpage.extract_path_suffix(x))
 
         return df
 

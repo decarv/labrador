@@ -39,6 +39,8 @@ class Crawler:
         - Dynamic Sitemap Parsing
         - Reconnection Logic: _session_setup() establishes new session, but robust network handling is required
             maybe add _session_cleanup() as well
+        - Works not found:
+            - https://www.teses.usp.br/teses/disponiveis/39/39132/tde-08072021-104642/pt-br.php
     """
     def __init__(self, **kwargs):
         self.session: requests.Session
@@ -67,7 +69,7 @@ class Crawler:
                 if webpage.is_metadata:
                     metadata = Metadata(webpage)
                     try:
-                        database.metadata_insert(metadata)
+                        database.documents_insert(metadata)
                     except Exception as e:
                         logger.error(f"Unable to store metadata for {metadata.url} in database. Error: {e}")
                         database.errors_insert(
@@ -217,7 +219,7 @@ class Crawler:
                     continue
 
                 try:
-                    database.metadata_insert(metadata)
+                    database.documents_insert(metadata)
                 except Exception as e:
                     logger.error(f"Unable to store metadata for {metadata.url} in database. Error: {e}")
                     database.errors_insert(
@@ -254,7 +256,7 @@ class Crawler:
 
 
 if __name__ == "__main__":
-    database.initialize_conn_pool(1, 10)
+    database.conn_pool_init(1, 10)
     crawler = Crawler()
     # crawler.run()
     # crawler.crawl_sitemap()

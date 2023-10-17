@@ -6,9 +6,9 @@
       <excludeFolder url="file://$MODULE_DIR$/.venv" />
       <excludeFolder url="file://$MODULE_DIR$/venv" />
       <excludeFolder url="file://$MODULE_DIR$/data" />
-      <excludeFolder url="file://$MODULE_DIR$/experiments" />
       <excludeFolder url="file://$MODULE_DIR$/labrador/deprecated" />
       <excludeFolder url="file://$MODULE_DIR$/labrador/mobus.egg-info" />
+      <excludeFolder url="file://$MODULE_DIR$/data/experiments" />
     </content>
     <orderEntry type="inheritedJdk" />
     <orderEntry type="sourceFolder" forTests="false" />

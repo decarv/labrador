@@ -19,13 +19,14 @@ limitations under the License.
 import os
 import pickle
 import time
-from typing import Optional
+from typing import Optional, Any
 import requests
 import pandas as pd
 import torch
 
 import config
 from config import DATA_DIR
+import httpx
 
 
 def get_request(
@@ -54,6 +55,10 @@ def get_request(
     # logging.warning(f"Failed to request the URI after {max_attempts} attempts")
     return None
 
+async def fetch_async(url):
+    async with httpx.AsyncClient() as client:
+        response = await client.get(url)
+        return response
 
 def post_request(
         url: str, params: dict, headers: dict, data: dict,
@@ -179,7 +184,7 @@ def load_metadata_from_csv() -> pd.DataFrame:
     return metadata
 
 
-def flatten(data: list[list[str]]) -> list[str]:
+def flatten(data: list[list[Any]]) -> list[Any]:
     return [item for sublist in data for item in sublist]
 
 
@@ -196,5 +201,5 @@ def flatten_nested(ds):
     return flat_ds
 
 
-def weaviate_class_name(model_name, token_type):
+def collection_name(model_name, token_type):
     return f"{model_name.replace('-', '').replace('/', '')}{token_type.replace('_', '')}"

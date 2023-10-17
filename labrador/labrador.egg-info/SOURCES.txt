@@ -4,7 +4,7 @@ setup.py
 labrador/index/__init__.py
 labrador/index/encoder.py
 labrador/index/indexer.py
-labrador/index/postling_lists.py
+labrador/index/posting.py
 labrador/index/tokenizer.py
 labrador/ingest/__init__.py
 labrador/ingest/crawler.py

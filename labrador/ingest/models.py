@@ -110,6 +110,17 @@ class Webpage:
         except Exception as e:
             raise e
 
+    @staticmethod
+    def remove_lang_from_url(url):
+        return re.sub(r'/\?&lang.*$', '', url)
+
+    @staticmethod
+    def extract_path_suffix(url):
+        pattern = r"disponiveis\/(.*\/td.*\d)"
+        match = re.search(pattern, url)
+        path_suffix = match.group()
+        return path_suffix
+
     def delete_cache(self):
         self.html = None
         self.soup = None
