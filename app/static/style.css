@@ -1,16 +1,25 @@
-body {
-    font-family: 'Roboto', sans-serif;
-    background-color: #008080;
-    color: black;
+/* This file was created with the help of the following resources:
+ *  - ChatGPT
+ *  - https://www.w3schools.com
+ */
+
+html, body {
+    min-height: 100%;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
 }
 
-.qrel-card {
-    width: 600px;  /* Increased the width from 320px to 600px */
-    padding: 16px;
-    margin: 20px auto;
-    border: 2px solid #000;
-    background-color: #c0c0c0;
-    box-shadow: 2px 2px 0px #7f7f7f, -2px -2px 0px #fff;
+body {
+    font-family: 'Roboto', sans-serif;
+    font-size: 16px;
+    background-color: #008080;
+    color: black;
+    margin: 0;
+    flex-direction: column;
+    padding: 0;
 }
 
 button {
@@ -23,6 +32,8 @@ button {
     font-weight: bold;
     cursor: pointer;
     transition: all 0.1s;
+    min-width: 100px; /* Ensuring a decent width for desktop */
+    padding: 8px 12px; /* Increased padding for better tappability */
 }
 
 button:hover {
@@ -37,42 +48,160 @@ button:active {
     border-right-color: #fff;
 }
 
-/* Input and Label styling */
-input[type="radio"] {
-    margin: 0 4px;
-    cursor: pointer;
-}
-
 label {
     cursor: pointer;
 }
 
-/* Scrollbar styling (optional) */
-::-webkit-scrollbar {
-    width: 16px;
+/* begin: first page search form */
+
+#search-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: 100%;
 }
 
-::-webkit-scrollbar-track {
+#search-form {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 100%;
+    height: 40%;
+    max-width: 600px;
+}
+
+#search-input {
+    border: 1px solid #000;
+    border-top-color: #fff;
+    border-left-color: #fff;
+    font-family: Roboto, sans-serif;
+    font-size: 15px;
     background-color: #c0c0c0;
-    border-left: 1px solid #000;
-    border-top: 1px solid #000;
+    box-shadow: inset 1px 1px 0px #7f7f7f, inset -1px -1px 0px #fff;
+    margin: 0 auto;
+    width: 90%;  /* Adjusted width */
+    text-align: center;
 }
 
-::-webkit-scrollbar-thumb {
-    background-color: #808080;
-    border-right: 1px solid #fff;
-    border-bottom: 1px solid #fff;
+#search-button-container {
+    margin-top: 10px;
+    display: flex;
+    justify-content: center; /* push button to the right */
+    width: 10%;
 }
 
-/* Dropdown menu styling (if you have one) */
-select {
-    padding: 4px;
+/* end */
+
+#labels {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+}
+
+#annotate-button {
+    order: 2;
+    margin-left: 20px;
+}
+
+.box {
+    max-width: 800px;
+    width: 85%;
+    padding: 16px;
+    margin: 20px auto;
+    border: 2px solid #000;
+    background-color: #c0c0c0;
+    box-shadow: 2px 2px 0px #7f7f7f, -2px -2px 0px #fff;
+}
+
+.modal-header {
+    background-color: #000080;
+    color: white;
+    padding: 2px 4px;
+    font-weight: bold;
+}
+
+.modal-content {
+    padding: 10px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.thankyou-modal-content {
+    padding: 20px;
+    text-align: center;
+}
+
+.win95-modal {
+    display: none;
+    position: fixed;
+    z-index: 1;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    border: 2px solid black;
+    background-color: #C0C0C0;
+    width: 250px;
+    box-shadow: 3px 3px 1px rgba(0, 0, 0, 0.2);
+    font-family: 'MS Sans Serif', Tahoma, sans-serif;
+    font-size: 12px;
+}
+
+/* Styling for the custom radio button */
+.custom-radio {
+    display: inline-block;
+    position: relative;
+    padding-left: 24px;
+    margin-right: 10px;
+    cursor: pointer;
+    font-family: 'MS Sans Serif', Tahoma, sans-serif;
+    font-size: 12px;
+    align-items: center;
+}
+
+/* Hide the default radio button */
+.custom-radio input[type="radio"] {
+    display: none;
+}
+
+/* Create a custom box for the radio button */
+.custom-radio label:before {
+    content: "";
+    display: inline-block;
+    position: absolute;
+    left: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 16px;
+    height: 16px;
     background-color: #c0c0c0;
     border: 1px solid #000;
     border-top-color: #fff;
     border-left-color: #fff;
-    color: #000;
-    font-weight: bold;
-    cursor: pointer;
+    box-shadow: inset 1px 1px 0px #7f7f7f, inset -1px -1px 0px #fff;
 }
 
+.custom-radio input[type="radio"]:checked + label:before {
+    background-color: #000080;
+    box-shadow: inset 1px 1px 0px #7f7f7f, inset -1px -1px 0px #fff, inset 2px 2px 0px #c0c0c0, inset 3px 3px 0px #000080;
+}
+
+/* Adding a hover effect */
+.custom-radio:hover label:before {
+    background-color: #a0a0a0;
+}
+
+.loading-spinner {
+    border: 4px solid #C0C0C0;
+    border-top: 5px solid #000080;
+    border-radius: 50%;
+    width: 30px;
+    height: 30px;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}

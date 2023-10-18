@@ -1,3 +1,4 @@
+import json
 from typing import Optional, Iterable
 
 import os
@@ -5,6 +6,7 @@ import bs4
 import asyncio
 import random
 
+import httpcore
 import httpx
 import qdrant_client
 import sanic
@@ -55,7 +57,14 @@ async def init_resources(app, loop):
     app.ctx.keyword_searcher = None
     # ks = KeywordSearcher()
 
+    app.ctx.client_ip_table = {}
+
     logger.info("Resources initialized")
+
+
+@app.listener('before_server_start')
+async def start_periodic_tasks(app, loop):
+    loop.create_task(periodic_tasks(app))
 
 
 @app.get("/")
@@ -63,45 +72,53 @@ async def index(request: Request) -> HTTPResponse:
     return await response.file(os.path.join(STATIC_DIR, "index.html"))
 
 
-@app.get("/search/")
+@app.get("/search")
 @limiter.limit("5 per minute")
 async def search(request: Request) -> HTTPResponse:
-    query = request.args.get("query", None).strip()
-    if query is None:
-        return sanic.response.json({"error": "No query provided"}, status=400)
+    if disallow_ip(request.ip):
+        return sanic.response.json({"success": False, "error": "Too many requests from this IP. Chill..."}, status=429)
+    update_client_ip_table(app, request.ip)
 
+    query = request.args.get("query", "").strip()
+    if query == "":
+        return sanic.response.json({"success": False, "error": "No query provided"}, status=400)
+
+    response = await request.respond(content_type="application/json", status=200)
+
+    sent_hits_ids: set[int] = set()
     try:
         gather_results = await asyncio.gather(
             *(database.queries_write(query),
-              app.ctx.repository_searcher.search_async(query),
               app.ctx.neural_searcher.search_async(query))
         )
-    except httpx.ReadTimeout:
-        return sanic.response.json({"error": "Search timed out"}, status=504)
+        query_id, ns_hits = gather_results
+        structured_ns_hits = structure_hits(ns_hits, sent_hits_ids)
 
-    query_id = gather_results[0]
-    logger.debug(f"Query ID: {query_id} hits")
+        await response.send(json.dumps({"success": True, "queryId": query_id, "hits": structured_ns_hits, "done": False}))
 
-    hits = [gather_results[1], gather_results[2]]
-    logger.debug(f"Repository Searcher returned {len(hits[0])} hits")
-    logger.debug(f"Neural Searcher returned {len(hits[1])} hits")
+        rs_hits = await app.ctx.repository_searcher.search_async(query)
 
-    structured_hits = structure_hits(hits)
-    return sanic.response.json({"queryId": query_id, "hits": structured_hits})
+        structured_rs_hits = structure_hits(rs_hits, sent_hits_ids)
+
+        # Remove the first bracket
+        await response.send(json.dumps({"success": True, "queryId": query_id, "hits": structured_rs_hits, "done": True}))
+
+    except (TimeoutError, httpx.ReadTimeout, httpx.ConnectTimeout):
+        return sanic.response.json({"success": False, "error": "Search timed out"}, status=504)
+
+    return await response.eof()
 
 
-@app.get("/annotate/")
+@app.get("/annotate")
 @limiter.limit("40 per minute")
 async def annotate(request: Request) -> HTTPResponse:
-    query_id = request.args.get("query_id", None)
-    if query_id is None:
-        return sanic.response.json({"error": "No query_id provided"}, status=400)
-    doc_id = request.args.get("doc_id", None)
-    if doc_id is None:
-        return sanic.response.json({"error": "No doc_id provided"}, status=400)
-    rel = request.args.get("rel", None)
-    if rel is None:
-        return sanic.response.json({"error": "No rel provided"}, status=400)
+    if disallow_ip(request.ip):
+        return sanic.response.json({"error": "Too many requests from this IP. Chill..."}, status=429)
+    update_client_ip_table(app, request.ip)
+
+    query_id, doc_id, rel, rc = validate_input(request)
+    if rc is not None:
+        return rc
 
     logger.info(f"Received annotation request for query_id: {query_id}")
     try:
@@ -111,24 +128,72 @@ async def annotate(request: Request) -> HTTPResponse:
         logger.exception(e)
         return sanic.response.json({"error": "Failed to write annotation"}, status=500)
 
-app.static('/test/', os.path.join(TEMPLATE_DIR, "test.html"))
+
+def update_client_ip_table(app, ip: str):
+    if ip not in app.ctx.client_ip_table:
+        app.ctx.client_ip_table[ip] = {
+            'recent_requests': 0,
+            'blacklist': False
+        }
+    app.ctx.client_ip_table[ip]['recent_requests'] += 1
 
 
-def structure_hits(list_of_hits: list[list[dict]]) -> list[dict]:
-    hits = utils.flatten(list_of_hits)
+async def periodic_tasks(app):
+    while True:
+        logger.info("Running periodic tasks")
+        client_ip_table_cleanup(app)
+        await asyncio.sleep(300)
+
+
+def client_ip_table_cleanup(app):
+    for ip in app.ctx.client_ip_table.keys():
+        app.ctx.client_ip_table[ip]['recent_requests'] = 0
+        app.ctx.client_ip_table[ip]['blacklist'] = False
+
+
+def disallow_ip(ip: str) -> bool:
+    if ip in app.ctx.client_ip_table:
+        return app.ctx.client_ip_table[ip]['recent_requests'] > 100 or app.ctx.client_ip_table[ip]['blacklist']
+    return False
+
+
+def validate_input(request: Request) -> tuple[int, int, int, Optional[HTTPResponse]]:
+
+    query_id = request.args.get("query_id", None).strip()
+    doc_id = request.args.get("doc_id", None)
+    rel = request.args.get("rel", None)
+
+    if query_id is None or doc_id is None or rel is None:
+        return 0, 0, 0, sanic.response.json({"error": "Malformed input"}, status=400)
+
+    try:
+        query_id = int(query_id)
+        rel = int(rel)
+        doc_id = int(doc_id)
+        assert rel in [1, 2, 3, 4, 5]
+    except ValueError:
+        app.ctx.client_ip_table[request.ip]['blacklist'] = True
+        return 0, 0, 0, sanic.response.json({"error": "Malformed input"}, status=400)
+    except AssertionError:
+        app.ctx.client_ip_table[request.ip]['blacklist'] = True
+        return 0, 0, 0, sanic.response.json({"error": "Malformed input"}, status=400)
+
+    return query_id, doc_id, rel, None
+
+
+def structure_hits(hits: list[dict], sent_hits_ids: set[int]) -> list[dict]:
+    # hits = utils.flatten(list_of_hits)
 
     # TODO: This is a temporary solution for cleaning the title. The title should be cleaned in the database.
     #  The processor already implements this. The idea is for the processor to identify differences and update
     #  and for every other component to update based on change of data based on how it changed.
     for i, hit in enumerate(hits):
         hit['title'] = hit['title'].strip("\"")
-
-    shuffled_hits = shuffle_hits(hits)
+    shuffled_hits = shuffle_hits(hits, sent_hits_ids)
     return shuffled_hits
 
 
-def shuffle_hits(hits: list[dict]) -> list[dict]:
-    inserted = set()
+def shuffle_hits(hits: list[dict], inserted: set[int]) -> list[dict]:
     shuffled_hits = []
     for hit in hits:
         if hit['doc_id'] not in inserted:

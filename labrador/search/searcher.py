@@ -24,6 +24,7 @@ from abc import ABC, abstractmethod
 from typing import Any
 
 import bs4
+import httpcore
 import httpx
 import numpy as np
 import qdrant_client
@@ -154,28 +155,26 @@ class RepositorySearcher(Searcher):
             last_page += 1
         urls = [base_url + str(page) for page in range(1, last_page+1)]
 
-        try:
-            responses = await self.multi_fetch_async(urls)
-            documents_paths: list[str] = []
-            for i in range(last_page):
-                response = responses[i]
-                soup = bs4.BeautifulSoup(response.content, 'html.parser')
-                divs = soup.find_all(
-                    "div",
-                    class_=["dadosLinha dadosCor1", "dadosLinha dadosCor2"]
-                )
-                documents_paths += [Webpage.extract_path_suffix(div.a['href']) for div in divs]
-            records: list[dict] = await database.documents_query_url_path_suffix_async(documents_paths)
-            results: list[dict] = [record for record in records]
-        except httpx.ReadTimeout:
-            logger.error("RS async took too long")
-            results = []
+        responses = await self.multi_fetch_async(urls)
+        documents_paths: list[str] = []
+        for i in range(last_page):
+            response = responses[i]
+            soup = bs4.BeautifulSoup(response.content, 'html.parser')
+            divs = soup.find_all(
+                "div",
+                class_=["dadosLinha dadosCor1", "dadosLinha dadosCor2"]
+            )
+            documents_paths += [Webpage.extract_path_suffix(div.a['href']) for div in divs]
+        records: list[dict] = await database.documents_query_url_path_suffix_async(documents_paths)
+        results: list[dict] = [record for record in records]
 
         return results
 
     @staticmethod
     async def multi_fetch_async(urls: list[str]):
-        async with httpx.AsyncClient(timeout=10.0) as client:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            if len(urls) == 1:
+                return [await client.get(urls[0])]
             responses = await asyncio.gather(*[client.get(url) for url in urls])
             return responses
 
