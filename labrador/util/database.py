@@ -16,8 +16,9 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 import asyncio
+import time
 import datetime
-from typing import Iterator, Optional, Union
+from typing import Iterator, Optional, Union, Iterable
 
 import psycopg
 import psycopg_pool
@@ -30,7 +31,7 @@ from psycopg2.extras import RealDictRow, RealDictCursor, DictCursor
 import config
 from config import POSTGRESQL_DB_NAME, POSTGRESQL_DB_USER, POSTGRESQL_DB_PASSWORD, POSTGRESQL_DB_HOST, \
     POSTGRESQL_DB_PORT
-from ingest.models import Webpage, Metadata
+from ingest.models import RawData
 
 from util import log
 import asyncio
@@ -39,30 +40,96 @@ from psycopg.rows import dict_row
 logger = log.configure_logger(__file__)
 log = log.log(logger)
 
-conn_pool: Optional[pool.SimpleConnectionPool] = None
-async_conn_pool: Optional[psycopg_pool.AsyncConnectionPool] = None
-conninfo: str = (f"dbname={config.POSTGRESQL_DB_NAME} "
-                 f"user={config.POSTGRESQL_DB_USER} "
-                 f"password={config.POSTGRESQL_DB_PASSWORD} "
-                 f"host={config.POSTGRESQL_DB_HOST} "
-                 f"port={config.POSTGRESQL_DB_PORT}")
+conn_pool: Optional[psycopg_pool.ConnectionPool] = None
+
+
+class AsyncDatabase:
+    class AsyncDatabaseError(Exception):
+        pass
+
+    def __init__(self):
+        self._conninfo: str = (
+            f"dbname={config.POSTGRESQL_DB_NAME} "
+            f"user={config.POSTGRESQL_DB_USER} "
+            f"password={config.POSTGRESQL_DB_PASSWORD} "
+            f"host={config.POSTGRESQL_DB_HOST} "
+            f"port={config.POSTGRESQL_DB_PORT}"
+        )
+        self._async_conn_pool: Optional[psycopg_pool.AsyncConnectionPool] = None
+        self.conn_pool_init()
+
+    def conn_pool_init(self, minconn: int = 1, maxconn: int = 30):
+        self._async_conn_pool = psycopg_pool.AsyncConnectionPool(conninfo=self._conninfo, min_size=minconn, max_size=maxconn,)
+
+    async def getconn(self, timeout: int = 100):
+        if self._async_conn_pool is None:
+            raise AsyncDatabase.AsyncDatabaseError("Connection pool is not initialized.")
+        return await self._async_conn_pool.getconn()
+
+    async def putconn(self, conn):
+        if self._async_conn_pool is None:
+            raise AsyncDatabase.AsyncDatabaseError("Connection pool is not initialized.")
+        return await self._async_conn_pool.putconn(conn)
+
+    async def select(self, query, var_args=None):
+        conn = await self.getconn()
+        async with conn.cursor(row_factory=dict_row) as cur:
+            if var_args is None:
+                await cur.execute(query)
+            else:
+                await cur.execute(query, var_args)
+            results = await cur.fetchall()
+        await self.putconn(conn)
+        return results
+
+    async def insert(self, query, var_args=None):
+        conn = await self.getconn()
+        async with conn.cursor() as cur:
+            if var_args is None:
+                await cur.execute(query)
+            else:
+                await cur.execute(query, var_args)
+            await cur.commit()
+        await self.putconn(conn)
+
+    async def queries_write(self, query):
+        insert_query = """INSERT INTO queries (query) VALUES (%s) ON CONFLICT DO NOTHING RETURNING id;"""
+        aconn = await self.getconn()
+        async with aconn.cursor() as acur:
+            try:
+                await acur.execute("SELECT id FROM queries WHERE query = %s;", (query,))
+                id_of_inserted_row = await acur.fetchone()
+                if id_of_inserted_row is not None:
+                    id_of_inserted_row = id_of_inserted_row[0]
+                else:
+                    await acur.execute(insert_query, (query,))
+                    id_of_inserted_row = await acur.fetchone()
+                    id_of_inserted_row = id_of_inserted_row[0]
+                    await aconn.commit()
+            except Exception as e:
+                raise e
+            finally:
+                await self.putconn(aconn)
+        return id_of_inserted_row
+
+    async def qrels_write(self, query_id: Union[int, str], doc_id: Union[int, str], relevance: Union[int, str]) -> None:
+        insert_query = """INSERT INTO qrels (query_id, data_id, relevance) VALUES (%s, %s, %s);"""
+        aconn = await self.getconn()
+        async with aconn.cursor() as acur:
+            try:
+                await acur.execute(insert_query, (query_id, doc_id, relevance,))
+                await aconn.commit()
+            except Exception as e:
+                raise e
+            finally:
+                await self.putconn(aconn)
 
 
 def conn_pool_init(minconn: int = 1, maxconn: int = 20):
     global conn_pool
     conn_pool = psycopg_pool.ConnectionPool(conninfo, min_size=minconn, max_size=maxconn,)
 
-
-async def async_conn_pool_init():
-    await _async_conn_pool_init()
-
-
-async def _async_conn_pool_init(minconn: int = 1, maxconn: int = 20):
-    global async_conn_pool
-    async_conn_pool = psycopg_pool.AsyncConnectionPool(conninfo=conninfo, min_size=minconn, max_size=maxconn,)
-
-
-def get_conn():
+def get_conn(timeout=180):
     global conn_pool
     if conn_pool is None:
         raise Exception("Connection pool is not initialized.")
@@ -110,11 +177,11 @@ def webpages_instance_exists(url: str) -> bool:
     return table_instance_exists("webpages", "url", url) is not None
 
 
-def metadata_instance_exists(url: str) -> bool:
-    return table_instance_exists("metadata", "url", url) is not None
+def raw_data_contains(url: str) -> bool:
+    return table_instance_exists("raw_data", "url", url) is not None
 
 
-def webpages_crawled_update(webpage: Webpage) -> None:
+def webpages_crawled_update(webpage) -> None:
     conn = get_conn()
     cursor = conn.cursor()
     cursor.execute("UPDATE webpages SET is_crawled = 1 WHERE url = %s;", (webpage.url,))
@@ -146,7 +213,7 @@ def webpages_empty() -> bool:
     return result[0] == 0
 
 
-def webpages_insert(webpage: Webpage) -> None:
+def webpages_insert(webpage) -> None:
     conn = get_conn()
     cursor = conn.cursor()
     cursor.execute(
@@ -157,11 +224,74 @@ def webpages_insert(webpage: Webpage) -> None:
     put_conn(conn)
 
 
-def documents_insert(metadata: Metadata) -> None:
-    conn = get_conn()
-    cursor = conn.cursor()
-    cursor.execute("""
-        INSERT INTO raw_data (
+def raw_data_insert(rd: RawData) -> None:
+    conn = connection()
+    with conn.cursor() as cur:
+        cur.execute("""
+            INSERT INTO raw_data (
+                url, 
+                doi, 
+                type, 
+                author, 
+                institute, 
+                knowledge_area, 
+                committee, 
+                title_pt, 
+                title_en, 
+                keywords_pt, 
+                keywords_en, 
+                abstract_pt, 
+                abstract_en, 
+                publish_date
+            )
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
+        """, (
+            rd.url,
+            rd.doi,
+            rd.type,
+            rd.author,
+            rd.institute,
+            rd.knowledge_area,
+            rd.committee,
+            rd.title_pt,
+            rd.title_en,
+            rd.keywords_pt,
+            rd.keywords_en,
+            rd.abstract_pt,
+            rd.abstract_en,
+            rd.publish_date
+        ))
+    conn.commit()
+    conn.close()
+
+
+def raw_data_batch_insert(rd_list: Iterable[RawData]) -> None:
+    conn = connection()
+    with conn.cursor() as cur:
+        query = """INSERT INTO raw_data (
+                url, 
+                doi, 
+                type, 
+                author, 
+                institute, 
+                knowledge_area, 
+                committee, 
+                title_pt, 
+                title_en, 
+                keywords_pt, 
+                keywords_en, 
+                abstract_pt, 
+                abstract_en, 
+                publish_date
+            )
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);"""
+        cur.executemany(query, [tuple(rd) for rd in rd_list])
+    conn.commit()
+    conn.close()
+
+
+async def raw_data_batch_insert_async(rd_list: Iterable[RawData]) -> None:
+    query = """INSERT INTO raw_data (
             url, 
             doi, 
             type, 
@@ -177,25 +307,16 @@ def documents_insert(metadata: Metadata) -> None:
             abstract_en, 
             publish_date
         )
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-    """, (
-        metadata.url,
-        metadata.doi,
-        metadata.type,
-        metadata.author,
-        metadata.institute,
-        metadata.knowledge_area,
-        metadata.committee,
-        metadata.title_pt,
-        metadata.title_en,
-        metadata.keywords_pt,
-        metadata.keywords_en,
-        metadata.abstract_pt,
-        metadata.abstract_en,
-        metadata.publish_date
-    ))
-    conn.commit()
-    put_conn(conn)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)"""
+    conn = await asyncpg.connect(
+        host=POSTGRESQL_DB_HOST,
+        port=POSTGRESQL_DB_PORT,
+        user=POSTGRESQL_DB_USER,
+        password=POSTGRESQL_DB_PASSWORD,
+        database=POSTGRESQL_DB_NAME,
+    )
+    await conn.executemany(query, [tuple(rd) for rd in rd_list])
+    await conn.close()
 
 
 def connection():
@@ -240,7 +361,7 @@ def table_chunk_generator(table_name: str, chunk_size: int = 4096) -> Iterator[l
 
 
 def documents_chunk_generator(chunk_size: int = 4096) -> Iterator[list[RealDictRow]]:
-    yield from table_chunk_generator("data", chunk_size)
+    yield from table_chunk_generator("clean_data", chunk_size)
 
 
 def embeddings_exists(token_id: int, model_name: str) -> bool:
@@ -327,13 +448,16 @@ async def db_get_conn_async():
     )
 
 
-def tokens_chunk_generator(model_name, chunk_size: int = 4096) -> Iterator[list[RealDictRow]]:
+def tokens_chunk_generator(token_type, chunk_size: int = 4096) -> Iterator[list[RealDictRow]]:
     select_query: str = """
-        SELECT cmt.id, cmt.token
-          FROM tokens AS cmt
-          LEFT JOIN (SELECT * FROM embeddings WHERE model_name = %s) AS e
-            ON cmt.id = e.token_id
-         WHERE token_id IS NULL;
+        SELECT t.id, t.token, t.token_type, t.language, t.data_id, iq.collection_name,
+        d.title_pt as title, d.abstract_pt as abstract, d.keywords_pt as keywords,
+        d.author, d.url
+          FROM tokens AS t
+          JOIN clean_data AS d ON t.data_id = d.id
+          LEFT OUTER JOIN indexed_in_qdrant AS iq ON t.id = iq.id
+         WHERE token_type = %s
+         AND iq.collection_name IS NULL;
     """
     with psycopg2.connect(
             dbname=config.POSTGRESQL_DB_NAME,
@@ -343,12 +467,46 @@ def tokens_chunk_generator(model_name, chunk_size: int = 4096) -> Iterator[list[
             port=config.POSTGRESQL_DB_PORT
     ) as conn:
         with conn.cursor(cursor_factory=RealDictCursor) as cursor:
-            cursor.execute(select_query, (model_name,))
+            cursor.execute(select_query, (token_type,))
             while True:
                 instances = cursor.fetchmany(chunk_size)
                 if not instances:
                     break
                 yield instances
+
+
+async def insert_clean_data(self, record: tuple):
+    insert_query = """
+               INSERT INTO clean_data (
+               url_path_suffix,
+               doi,
+               type,
+               author,
+               institute,
+               knowledge_area,
+               committee,
+               title, 
+               keywords,
+               abstract, 
+               language,
+               publish_date,
+               raw_data_id,
+               last_update
+               ) 
+               VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, to_date($14, 'YYYY-MM-DD'), $15, $16)
+               ON CONFLICT (raw_data_id)
+               DO UPDATE SET 
+               keywords_pt = EXCLUDED.keywords_pt;
+               """
+    aconn = await get_conn_async()
+    async with aconn.cursor() as acur:
+        try:
+            await acur.execute(insert_query, record)
+            await aconn.commit()
+        except Exception as e:
+            raise e
+        finally:
+            await put_conn_async(aconn)
 
 
 @log
@@ -378,6 +536,25 @@ async def embeddings_read_async(model_name: str, token_type: str, language: str)
                          (model_name, token_type, language, from_id, to_id,)) for from_id, to_id in intervals
     ])
     return records
+
+
+async def read_raw_data() -> None:
+    select_query = """SELECT * FROM raw_data WHERE cleaned = false ORDER BY id;"""
+    aconn = await get_conn_async()
+    async with aconn.cursor() as acur:
+        data_records = await acur.execute(select_query)
+        data_records = await acur.fetchall()
+        return data_records
+
+
+def raw_data_get_urls(batch_size: int = 4096) -> list[str]:
+    select_query = """SELECT url FROM raw_data ORDER BY id;"""
+    conn = connection()
+    with conn.cursor() as cur:
+        cur.execute(select_query)
+        urls = cur.fetchall()
+    conn.close()
+    return [url[0] for url in urls]
 
 
 async def _embeddings_read(records, _params: tuple[str, str, str, int, int]) -> None:
@@ -434,22 +611,6 @@ def data_read_in_ids(data_ids: list[int]):
             cursor.execute(select_query, (data_ids,))
             return cursor.fetchall()
 
-
-def documents_query_url_path_suffix(urls: list[str]):
-    if conn_pool is None:
-        raise Exception("Connection pool is not initialized.")
-    select_query = """SELECT d.id as doc_id, d.title_pt as title, d.abstract_pt as abstract, d.keywords_pt as keywords,
-                                d.author, d.url
-                    FROM data as d 
-                    WHERE d.url_path_suffix = ANY(%s);"""
-    with conn_pool.connection() as conn:
-        with conn.cursor(row_factory=dict_row) as cursor:
-            cursor.execute(select_query, (urls,))
-            records = cursor.fetchall()
-            return records
-
-
-
 async def documents_query_url_path_suffix_async(urls: list[str]) -> list[dict]:
     select_query = """SELECT d.id as doc_id, d.title_pt as title, d.abstract_pt as abstract, d.keywords_pt as keywords,
                                 d.author, d.url
@@ -482,40 +643,73 @@ def qrels_read() -> list[RealDictRow]:
             return cursor.fetchall()
 
 
-async def qrels_write(query_id: Union[int, str], doc_id: Union[int, str], relevance: Union[int, str]) -> None:
-    insert_query = """INSERT INTO qrels (query_id, data_id, relevance) VALUES (%s, %s, %s);"""
-    aconn = await get_conn_async()
-    async with aconn.cursor() as acur:
-        try:
-            await acur.execute(insert_query, (query_id, doc_id, relevance,))
-            await aconn.commit()
-        except Exception as e:
-            raise e
-        finally:
-            await put_conn_async(aconn)
+
+def raw_data_batch_generator(batch_size: int = 64) -> Iterator[list[RealDictRow]]:
+    select_query = """SELECT * FROM raw_data WHERE cleaned = false ORDER BY id;"""
+    with psycopg2.connect(
+            dbname=POSTGRESQL_DB_NAME,
+            user=POSTGRESQL_DB_USER,
+            password=POSTGRESQL_DB_PASSWORD,
+            host=POSTGRESQL_DB_HOST,
+            port=POSTGRESQL_DB_PORT
+    ) as conn:
+        with conn.cursor(cursor_factory=RealDictCursor) as cursor:
+            cursor.execute(select_query, (batch_size,))
+            while True:
+                instances = cursor.fetchmany(batch_size)
+                if not instances:
+                    break
+                yield instances
 
 
-async def queries_write(query):
-    insert_query = """INSERT INTO queries (query) VALUES (%s) ON CONFLICT DO NOTHING RETURNING id;"""
-    aconn = await get_conn_async()
-    async with aconn.cursor() as acur:
-        try:
-            await acur.execute("SELECT id FROM queries WHERE query = %s;", (query,))
-            id_of_inserted_row = await acur.fetchone()
-            if id_of_inserted_row is not None:
-                id_of_inserted_row = id_of_inserted_row[0]
-            else:
-                await acur.execute(insert_query, (query,))
-                id_of_inserted_row = await acur.fetchone()
-                id_of_inserted_row = id_of_inserted_row[0]
-                await aconn.commit()
-        except Exception as e:
-            raise e
-        finally:
-            await put_conn_async(aconn)
-    return id_of_inserted_row
+def clean_data_batch_insert(records: list[dict]):
+    columns = ", ".join(records[0].keys())
+    vars_list = [list(record.values()) for record in records]
+    insert_query = f"""INSERT INTO clean_data ({columns}) 
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, to_date(%s, 'YYYY-MM-DD'), %s, %s)
+                        ON CONFLICT (raw_data_id)
+                        DO NOTHING;
+                    """
+    with psycopg2.connect(
+            dbname=POSTGRESQL_DB_NAME,
+            user=POSTGRESQL_DB_USER,
+            password=POSTGRESQL_DB_PASSWORD,
+            host=POSTGRESQL_DB_HOST,
+            port=POSTGRESQL_DB_PORT
+    ) as conn:
+        with conn.cursor() as cur:
+            cur.executemany(insert_query, vars_list)
+            cur.executemany("UPDATE raw_data SET cleaned = true WHERE id = %s;",
+                            [(record['raw_data_id'],) for record in records])
+            conn.commit()
+
+
+def id_exists_in_qdrant(id: int, collection_name: str) -> bool:
+    select_query = """SELECT * FROM indexed_in_qdrant WHERE id = %s AND collection_name = %s;"""
+    with psycopg2.connect(
+            dbname=POSTGRESQL_DB_NAME,
+            user=POSTGRESQL_DB_USER,
+            password=POSTGRESQL_DB_PASSWORD,
+            host=POSTGRESQL_DB_HOST,
+            port=POSTGRESQL_DB_PORT
+    ) as conn:
+        with conn.cursor() as cursor:
+            cursor.execute(select_query, (id, collection_name,))
+            return len(cursor.fetchall()) > 0
+
+def insert_batch_in_qdrant(records: list[tuple[int, str]]) -> None:
+    insert_query = """INSERT INTO indexed_in_qdrant (id, collection_name) VALUES (%s, %s);"""
+    with psycopg2.connect(
+            dbname=POSTGRESQL_DB_NAME,
+            user=POSTGRESQL_DB_USER,
+            password=POSTGRESQL_DB_PASSWORD,
+            host=POSTGRESQL_DB_HOST,
+            port=POSTGRESQL_DB_PORT
+    ) as conn:
+        with conn.cursor() as cursor:
+            cursor.executemany(insert_query, records)
+            conn.commit()
+
 
 if __name__ == "__main__":
-    print(documents_query_url_path_suffix(
-        ["disponiveis/18/18148/tde-27082013-105058", "disponiveis/5/5139/tde-06052009-162539"]
-    ))
+    pass

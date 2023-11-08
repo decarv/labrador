@@ -51,7 +51,12 @@ async function streamData(query) {
         } catch (e) {
             if (completeData === "") break;
         }
+        await sleep(50);
     }
+}
+
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 function processData(data) {

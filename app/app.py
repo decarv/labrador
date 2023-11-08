@@ -1,5 +1,5 @@
 import json
-from typing import Optional, Iterable
+from typing import Optional, Iterable, Union
 
 import os
 import bs4
@@ -18,8 +18,9 @@ from sanic_limiter import Limiter
 
 import config
 from util import utils
-from ingest.models import Webpage, Metadata
-from search.searcher import NeuralSearcher, RepositorySearcher, SearchResultObject, LocalNeuralSearcher
+from search.searcher import SearchResultObject
+from search.ns import NeuralSearcher, LocalNeuralSearcher
+from search.rs import RepositorySearcher
 
 from config import APP_DIR, QDRANT_HOST, QDRANT_PORT
 from util import database, log
@@ -41,8 +42,8 @@ limiter = Limiter(app)
 @app.before_server_start
 async def init_resources(app, loop):
     # config
-    await database.async_conn_pool_init()
-    database.conn_pool_init()
+    app.ctx.adb = database.AsyncDatabase()
+    app.ctx.adb.conn_pool_init()
     app.ctx.model_name = list(config.MODELS.keys())[0]
     app.ctx.token_type = "sentence_with_keywords"
 
@@ -51,11 +52,11 @@ async def init_resources(app, loop):
     app.ctx.neural_searcher = NeuralSearcher(
         client=app.ctx.client,
         model_name=app.ctx.model_name, collection_name=app.ctx.collection_name,
-        token_type=app.ctx.token_type
+        token_type=app.ctx.token_type,
     )
-    app.ctx.repository_searcher = RepositorySearcher()
+    app.ctx.repository_searcher = RepositorySearcher(database=app.ctx.adb)
     app.ctx.keyword_searcher = None
-    # ks = KeywordSearcher()
+    # app.ctx.keyword_searcher = KeywordSearcher()
 
     app.ctx.client_ip_table = {}
 
@@ -88,7 +89,7 @@ async def search(request: Request) -> HTTPResponse:
     sent_hits_ids: set[int] = set()
     try:
         gather_results = await asyncio.gather(
-            *(database.queries_write(query),
+            *(app.ctx.adb.queries_write(query),
               app.ctx.neural_searcher.search_async(query))
         )
         query_id, ns_hits = gather_results
@@ -100,13 +101,13 @@ async def search(request: Request) -> HTTPResponse:
 
         structured_rs_hits = structure_hits(rs_hits, sent_hits_ids)
 
-        # Remove the first bracket
-        await response.send(json.dumps({"success": True, "queryId": query_id, "hits": structured_rs_hits, "done": True}))
+        await response.send(json.dumps({"success": True, "queryId": query_id, "hits": structured_rs_hits, "done": False}))
 
     except (TimeoutError, httpx.ReadTimeout, httpx.ConnectTimeout):
         return sanic.response.json({"success": False, "error": "Search timed out"}, status=504)
 
-    return await response.eof()
+    finally:
+        await response.send(json.dumps({"success": True, "queryId": -1, "hits": [], "done": False}))
 
 
 @app.get("/annotate")
@@ -122,7 +123,7 @@ async def annotate(request: Request) -> HTTPResponse:
 
     logger.info(f"Received annotation request for query_id: {query_id}")
     try:
-        await database.qrels_write(query_id, doc_id, rel)
+        await app.ctx.adb.qrels_write(query_id, doc_id, rel)
         return sanic.response.json({"success": True})
     except Exception as e:
         logger.exception(e)

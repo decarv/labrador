@@ -7,7 +7,7 @@ Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
-    http://www.apache.org/licenses/LICENSE-2.0
+    https://www.apache.org/licenses/LICENSE-2.0
 
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
@@ -15,19 +15,17 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 """
-
-import sys
+import asyncio
+import time
 from queue import Queue
-from typing import Iterator
+from typing import Optional
 
 import chardet
 import requests
 from bs4 import BeautifulSoup
-from psycopg2.extras import RealDictRow
 
-import config
 from util import log, database
-from ingest.models import Metadata, Webpage
+from ingest.models import RawData, RawDataAsync
 
 logger = log.configure_logger(__file__)
 log = log.log(logger)
@@ -36,227 +34,142 @@ log = log.log(logger)
 class Crawler:
     """
     TODO:
-        - Dynamic Sitemap Parsing
-        - Reconnection Logic: _session_setup() establishes new session, but robust network handling is required
-            maybe add _session_cleanup() as well
+        - Dynamic sitemap.xml parsing: currently all the urls are parsed during one execution.
+        - Caching sitemap urls
+        - Consider using tenacity for retries
+        - Consider using asyncio
+    NOTES:
         - Works not found:
             - https://www.teses.usp.br/teses/disponiveis/39/39132/tde-08072021-104642/pt-br.php
     """
-    def __init__(self, **kwargs):
+    def __init__(self):
         self.session: requests.Session
+        self.sitemap_url = "https://teses.usp.br/sitemap/sitemap.xml"
 
-    def run(self) -> None:
-        self._session_setup()
-
-        queue: Queue[Webpage] = Queue()  # Queue to crawl
-        queued: set[Webpage] = set()
-        self._preprocess(queue, queued)
-
+    async def crawl_sitemap_async(self):
+        self._setup()
+        queue: Queue[str] = self._create_url_queue()
         while not queue.empty():
-            webpage: Webpage = queue.get()
-
+            raw_data_batch: list[RawData] = self._create_raw_data_batch(queue)
             try:
-                logger.info(f"Processing Webpage object: {webpage}.")
-                webpage.process(self.session)
+                await database.raw_data_batch_insert_async(raw_data_batch)
+                logger.info(f"Successfully stored {len(raw_data_batch)} raw data objects in database.")
             except Exception as e:
-                logger.error(f"Error while processing webpage: {webpage.url}")
-                database.errors_insert(
-                    f"Ex: {e} | Component: Crawler | Url: {webpage.url}"
-                )
-                continue
+                message = f"Uncaught Exception | {type(e)} | {e} | Component: Crawler"
+                logger.error(message)
+                database.errors_insert(message)
+                for raw_data in raw_data_batch:
+                    queue.put(raw_data.url)
 
-            if webpage.is_crawlable:
-                if webpage.is_metadata:
-                    metadata = Metadata(webpage)
-                    try:
-                        database.documents_insert(metadata)
-                    except Exception as e:
-                        logger.error(f"Unable to store metadata for {metadata.url} in database. Error: {e}")
-                        database.errors_insert(
-                            f"Ex: {e} | Component: Crawler | Url: {metadata.url}"
-                        )
-                        continue
-
-                for hyperlink in webpage.children_hyperlinks:
-                    child_webpage: Webpage = Webpage(hyperlink)
-                    if child_webpage.is_crawlable and child_webpage not in queued:
-                        try:
-                            logger.info(f"Inserting in database: {webpage.url}")
-                            database.webpages_insert(webpage)
-                            queue.put(child_webpage)
-                            queued.add(child_webpage)
-                        except Exception as e:
-                            logger.error(f"Could not insert in database: {child_webpage.url}")
-                            database.errors_insert(
-                                f"Ex: {e} | Component: Crawler | Url: {child_webpage.url}"
-                            )
-
-            database.webpages_crawled_update(webpage)
-
-    def crawl_sitemap(self):
-        logger.info("Started Sitemap Crawler")
-        sitemap_urls = [
-            'https://www.teses.usp.br/sitemap/sitemap01.xml',
-            'https://www.teses.usp.br/sitemap/sitemap02.xml',
-            'https://www.teses.usp.br/sitemap/sitemap03.xml',
-            'https://www.teses.usp.br/sitemap/201905.xml',
-            'https://www.teses.usp.br/sitemap/201906.xml',
-            'https://www.teses.usp.br/sitemap/201907.xml',
-            'https://www.teses.usp.br/sitemap/201908.xml',
-            'https://www.teses.usp.br/sitemap/201909.xml',
-            'https://www.teses.usp.br/sitemap/201910.xml',
-            'https://www.teses.usp.br/sitemap/201911.xml',
-            'https://www.teses.usp.br/sitemap/201912.xml',
-            'https://www.teses.usp.br/sitemap/202001.xml',
-            'https://www.teses.usp.br/sitemap/202002.xml',
-            'https://www.teses.usp.br/sitemap/202003.xml',
-            'https://www.teses.usp.br/sitemap/202004.xml',
-            'https://www.teses.usp.br/sitemap/202005.xml',
-            'https://www.teses.usp.br/sitemap/202006.xml',
-            'https://www.teses.usp.br/sitemap/202007.xml',
-            'https://www.teses.usp.br/sitemap/202008.xml',
-            'https://www.teses.usp.br/sitemap/202009.xml',
-            'https://www.teses.usp.br/sitemap/202010.xml',
-            'https://www.teses.usp.br/sitemap/202011.xml',
-            'https://www.teses.usp.br/sitemap/202012.xml',
-            'https://www.teses.usp.br/sitemap/202101.xml',
-            'https://www.teses.usp.br/sitemap/202102.xml',
-            'https://www.teses.usp.br/sitemap/202103.xml',
-            'https://www.teses.usp.br/sitemap/202104.xml',
-            'https://www.teses.usp.br/sitemap/202105.xml',
-            'https://www.teses.usp.br/sitemap/202106.xml',
-            'https://www.teses.usp.br/sitemap/202107.xml',
-            'https://www.teses.usp.br/sitemap/202108.xml',
-            'https://www.teses.usp.br/sitemap/202109.xml',
-            'https://www.teses.usp.br/sitemap/202110.xml',
-            'https://www.teses.usp.br/sitemap/202111.xml',
-            'https://www.teses.usp.br/sitemap/202112.xml',
-            'https://www.teses.usp.br/sitemap/202201.xml',
-            'https://www.teses.usp.br/sitemap/202202.xml',
-            'https://www.teses.usp.br/sitemap/202203.xml',
-            'https://www.teses.usp.br/sitemap/202204.xml',
-            'https://www.teses.usp.br/sitemap/202205.xml',
-            'https://www.teses.usp.br/sitemap/202206.xml',
-            'https://www.teses.usp.br/sitemap/202207.xml',
-            'https://www.teses.usp.br/sitemap/202208.xml',
-            'https://www.teses.usp.br/sitemap/202209.xml',
-            'https://www.teses.usp.br/sitemap/202210.xml',
-            'https://www.teses.usp.br/sitemap/202211.xml',
-            'https://www.teses.usp.br/sitemap/202212.xml',
-            'https://www.teses.usp.br/sitemap/202301.xml',
-            'https://www.teses.usp.br/sitemap/202302.xml',
-            'https://www.teses.usp.br/sitemap/202303.xml',
-            'https://www.teses.usp.br/sitemap/202304.xml',
-            'https://www.teses.usp.br/sitemap/202305.xml',
-            'https://www.teses.usp.br/sitemap/202306.xml'
-        ]
-
-        queue: Queue[Webpage] = Queue()  # Queue to crawl
-        for url in sitemap_urls:
-            try:
-                response = self.session.get(url)
-                if not response.ok:
-                    raise Exception(f"Request Error @ url {url}. Status Code: {response.status_code}")
-                encoding = chardet.detect(response.content)['encoding']
-                response.encoding = encoding
-
-                logger.info(f"Parsing url: {url}")
-                xml_soup = BeautifulSoup(response.content, "xml")
-            except Exception as e:
-                logger.error(f"Error while requesting and parsing: {url}")
-                database.errors_insert(
-                    f"Ex: {e} | Component: Crawler | Url: {url}"
-                )
-                continue
-
-            for child_url in (loc.text for loc in xml_soup.find_all("loc")):
-                try:
-                    webpage = Webpage(child_url)
-                    if not database.webpages_instance_exists(webpage.url):
-                        logger.info(f"Inserting in database: {webpage.url}")
-                        database.webpages_insert(webpage)
-                    else:
-                        logger.info(f"Database already contains url: {child_url}. Continuing.")
-
-                    if not database.metadata_instance_exists(webpage.url):
-                        logger.info(f"Queueing: {child_url}")
-                        queue.put(webpage)
-                except Exception as e:
-                    logger.error(f"Could not parse webpage: {child_url}")
-                    database.errors_insert(
-                        f"Ex: {e} | Component: Crawler | Url: {child_url}"
-                    )
-
+    async def _crawl_sitemap_async(self):
+        self._setup()
+        queue: asyncio.Queue[str] = await self._create_url_queue_async()
         while not queue.empty():
-            webpage: Webpage = queue.get()
+            raw_data_batch: list[RawData] = self._create_raw_data_batch(queue)
             try:
-                logger.info(f"Processing Webpage object: {webpage}.")
-                webpage.process(self.session)
-            except (requests.exceptions.RequestException, requests.exceptions.ConnectionError) as e:
-                logger.error(f"Error while requesting url: {webpage.url}. Error: {e}")
-                database.errors_insert(
-                    f"Ex: {e} | Component: Crawler | Url: {webpage.url}"
-                )
-                self._session_setup()
-                webpage.delete_cache()
-                queue.put(webpage)
-                continue
+                await database.raw_data_batch_insert_async(raw_data_batch)
+                logger.info(f"Successfully stored {len(raw_data_batch)} raw data objects in database.")
             except Exception as e:
-                logger.error(f"Error while processing webpage: {webpage.url}")
-                database.errors_insert(
-                    f"Ex: {e} | Component: Crawler | Url: {webpage.url}"
-                )
-                continue
+                message = f"Uncaught Exception | {type(e)} | {e} | Component: Crawler"
+                logger.error(message)
+                database.errors_insert(message)
+                for raw_data in raw_data_batch:
+                    await queue.put(raw_data.url)
 
-            if webpage.is_metadata:
-                try:
-                    metadata: Metadata = Metadata(webpage)
-                except Exception as e:
-                    logger.error(f"Unable to parse metadata for {webpage.url}. Exception: {e}")
-                    database.errors_insert(
-                        f"Ex: {e} | Component: Crawler | Url: {webpage.url} | Consequence: Unable to parse."
-                    )
-                    continue
-
-                try:
-                    database.documents_insert(metadata)
-                except Exception as e:
-                    logger.error(f"Unable to store metadata for {metadata.url} in database. Error: {e}")
-                    database.errors_insert(
-                        f"Ex: {e} | Component: Crawler | Url: {webpage.url} | Consequence: Unable to parse."
-                    )
-                    continue
-
-            database.webpages_crawled_update(webpage)
-
-    def _session_setup(self):
+    def _setup(self):
         self.session = requests.Session()
         self.session.headers.update({"Accept-Language": "pt-br,pt-BR"})
 
-    def _preprocess(self, queue: Queue[Webpage], queued: set[Webpage]):
-        if database.webpages_empty():
-            logger.info("Database empty. Starting crawl from config.BASE_URL.")
-            webpage = Webpage(config.BASE_URL)
+    def _create_raw_data_batch(self, queue: Queue):
+        insert_batch_size: int = 32
+        raw_data_batch: list[RawData] = []
+        while not queue.empty() and len(raw_data_batch) < insert_batch_size:
+            url = queue.get()
             try:
-                database.webpages_insert(webpage)
-            except Exception as e:
-                logger.error(f"Execute preprocess error: 'Could not insert to database': {e}")
-                sys.exit(1)
-            queue.put(webpage)
-            queued.add(webpage)
-        else:
-            logger.info("Database not empty. Adding visited urls to visited set and to queue.")
-            instances_batches: Iterator[list[RealDictRow]] = database.webpages_read()
-            for batch in instances_batches:
-                for instance in batch:
-                    webpage = Webpage(instance['url'])
-                    queued.add(webpage)
-                    if not instance['is_crawled']:
-                        queue.put(webpage)
+                raw_data: RawData = self._create_raw_data(url)
+                if raw_data is None:
+                    queue.put(url)
+                    continue
+                raw_data_batch.append(raw_data)
+            except RawData.RawDataError:
+                logger.info(f"RawDataError: {url}")
+                database.errors_insert(f"RawDataError: {url}")
+        return raw_data_batch
+
+    def _create_raw_data(self, url) -> Optional[RawData]:
+        retries: int = 5
+        while retries > 0:
+            try:
+                return RawData(url)
+            except requests.HTTPError:
+                logger.info(f"Failed to fetch {url} | Retries left: {retries}")
+                self._setup()
+                retries -= 1
+            except requests.exceptions.ConnectionError:
+                logger.info(f"Failed to fetch {url} | ConnectionError | Sleeping for 5 minutes")
+                time.sleep(300)
+                self._setup()
+                retries -= 1
+        logger.info(f"Failed to fetch {url} | Retries left: {retries}")
+        return None
+
+    async def _create_raw_data_batch_async(self, queue: Queue):
+        insert_batch_size: int = 64
+        raw_data_batch: list[RawDataAsync] = []
+        while not queue.empty() and len(raw_data_batch) < insert_batch_size:
+            url = queue.get()
+            raw_data: RawDataAsync = await self._create_raw_data_async(url)
+            if raw_data is None:
+                queue.put(url)
+                continue
+            raw_data_batch.append(raw_data)
+        return raw_data_batch
+
+    async def _create_raw_data_async(self, url) -> Optional[RawDataAsync]:
+        retries: int = 3
+        while retries > 0:
+            try:
+                return RawDataAsync(url)
+            except requests.HTTPError:
+                logger.info(f"Failed to fetch {url} | Retries left: {retries}")
+                self._setup()
+                retries -= 1
+        logger.info(f"Failed to fetch {url} | Retries left: {retries}")
+        return None
+
+    def _create_url_queue(self) -> Queue[str]:
+        response = requests.get(self.sitemap_url)
+        if response.status_code != 200:
+            logger.info(f"Failed to fetch sitemap: {response.status_code}")
+        encoding = chardet.detect(response.content)['encoding']
+        response.encoding = encoding
+        xml_soup = BeautifulSoup(response.content, "xml")
+        inserted_urls = set(database.raw_data_get_urls())
+
+        root_urls = [loc.text for loc in xml_soup.find_all("loc")][1:]
+
+        queue: Queue[str] = Queue()
+        for root_url in root_urls:
+            response = requests.get(root_url)
+            if response.status_code != 200:
+                logger.info(f"Failed to fetch sitemap: {response.status_code}")
+            encoding = chardet.detect(response.content)['encoding']
+            response.encoding = encoding
+            xml_soup = BeautifulSoup(response.content, "xml")
+            urls = [loc.text for loc in xml_soup.find_all("loc")]
+            for url in urls:
+                if url in inserted_urls:
+                    continue
+                queue.put(url)
+
+        return queue
+
+    async def _create_url_queue_async(self) -> asyncio.Queue[str]:
+        raise NotImplementedError
 
 
 if __name__ == "__main__":
-    database.conn_pool_init(1, 10)
     crawler = Crawler()
-    # crawler.run()
-    # crawler.crawl_sitemap()
+    while True:
+        asyncio.run(crawler.crawl_sitemap_async())
+        time.sleep(60 * 60)

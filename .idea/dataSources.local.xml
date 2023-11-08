@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
-  <component name="dataSourceStorageLocal" created-in="PY-232.10072.31">
-    <data-source name="mobus@192.168.15.195" uuid="19a5182e-818b-4927-a162-92a5ef5e55e4">
+  <component name="dataSourceStorageLocal" created-in="PY-232.10203.26">
+    <data-source name="decarv@gorilla" uuid="19a5182e-818b-4927-a162-92a5ef5e55e4">
       <database-info product="PostgreSQL" version="14.9 (Ubuntu 14.9-0ubuntu0.22.04.1)" jdbc-version="4.2" driver-name="PostgreSQL JDBC Driver" driver-version="42.6.0" dbms="POSTGRES" exact-version="14.9" exact-driver-version="42.6">
         <identifier-quote-string>&quot;</identifier-quote-string>
       </database-info>
@@ -14,7 +14,32 @@
             <node kind="database" qname="@">
               <node kind="schema" qname="@" />
             </node>
+            <node kind="database">
+              <name qname="labrador" />
+              <name qname="mobus" />
+              <node kind="schema" negative="1" />
+            </node>
             <node kind="database" qname="postgres" />
+          </node>
+        </introspection-scope>
+      </schema-mapping>
+    </data-source>
+    <data-source name="postgres@localhost" uuid="92871028-6bed-4dc6-b6e7-0d1ba9d28700">
+      <database-info product="PostgreSQL" version="15.4 (Ubuntu 15.4-0ubuntu0.23.04.1)" jdbc-version="4.2" driver-name="PostgreSQL JDBC Driver" driver-version="42.6.0" dbms="POSTGRES" exact-version="15.4" exact-driver-version="42.6">
+        <identifier-quote-string>&quot;</identifier-quote-string>
+      </database-info>
+      <case-sensitivity plain-identifiers="lower" quoted-identifiers="exact" />
+      <secret-storage>master_key</secret-storage>
+      <user-name>postgres</user-name>
+      <schema-mapping>
+        <introspection-scope>
+          <node negative="1">
+            <node kind="database" qname="labrador">
+              <node kind="schema" negative="1" />
+            </node>
+            <node kind="database" qname="postgres">
+              <node kind="schema" qname="public" />
+            </node>
           </node>
         </introspection-scope>
       </schema-mapping>

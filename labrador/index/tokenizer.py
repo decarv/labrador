@@ -26,10 +26,10 @@ import psycopg2
 from psycopg2.extras import RealDictRow
 
 import config
-import util.database
 import util.log
 from ingest.processor import Processor
 from util import utils, database
+import time
 
 logger = util.log.configure_logger(__file__)
 log = util.log.log(logger)
@@ -65,11 +65,11 @@ class Tokenizer:
 
     @log
     def tokenize(self, data_chunks: Iterator[list[RealDictRow]]) -> None:
-        for chunk in data_chunks:
-            self._tokenize_chunk(chunk)
+        for batch in data_chunks:
+            self._tokenize_batch(batch)
 
     @log
-    def _tokenize_chunk(self, chunk: list[RealDictRow], keep_in_memory=False):
+    def _tokenize_batch(self, chunk: list[RealDictRow], keep_in_memory=False):
         insert_query = """
         INSERT INTO tokens (data_id, token, token_type, language, unique_hash)
         VALUES (%s, %s, %s, %s, %s)
@@ -139,7 +139,6 @@ class Tokenizer:
                     await cursor.execute(insert_query, record)
         except Exception as e:
             logger.error(f"Error inserting records into database: {e}: {records[0]}")
-            logger.info(f"Error inserting records into database: {e}: {records[0]}")
             print(f"Error inserting records into database: {e}: {records[0]}")
             raise e
         finally:
@@ -282,11 +281,10 @@ class Tokenizer:
 
 
 if __name__ == "__main__":
-    languages: list[str] = ["pt"]
-    for language in languages:
-        for token_type in Tokenizer.token_types():
-            if token_type == "sentence_with_keywords":
-                continue
-            tokenizer = Tokenizer(token_type, language)
-            documents: Iterator[list[RealDictRow]] = database.documents_chunk_generator()
-            tokenizer.tokenize(documents)
+    language: str = "pt"
+    token_type = "sentence_with_keywords"
+    tokenizer = Tokenizer(token_type, language)
+    while True:
+        documents: Iterator[list[RealDictRow]] = database.documents_chunk_generator()
+        tokenizer.tokenize(documents)
+        time.sleep(300)

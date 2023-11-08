@@ -21,7 +21,7 @@ import time
 from typing import Iterator
 from index.encoder import Encoder
 from index.tokenizer import Tokenizer
-from search.searcher import LocalNeuralSearcher
+from search.ns import LocalNeuralSearcher
 import datetime
 
 import config

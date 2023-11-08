@@ -16,7 +16,10 @@ See the License for the specific language governing permissions and
 limitations under the License.
 
 """
+import time
+
 import torch
+from qdrant_client.models import PointStruct
 from sentence_transformers import SentenceTransformer
 from typing import Iterator
 from psycopg2.extras import RealDictRow
@@ -24,7 +27,7 @@ from torch.cuda import OutOfMemoryError
 import nvidia_smi
 
 import config
-from index.tokenizer import Tokenizer
+from index.indexer import QdrantIndexer
 from util import database, log
 
 logger = log.configure_logger(__file__)
@@ -33,13 +36,15 @@ log = log.log(logger)
 
 class Encoder:
     @log
-    def __init__(self, model_name: str, cache: bool = True):
+    def __init__(self, model_name: str, cache: bool = True, token_type: str = 'sentence_with_keywords'):
         logger.debug("Initializing encoder...")
 
         self.cache = cache
         self.device = 'cuda:0'
         self.model_name = model_name
+        self.token_type = token_type
         self.model = SentenceTransformer(model_name, device=self.device, cache_folder=config.MODEL_CACHE_DIR)
+        self.index = QdrantIndexer(self.model_name, token_type=self.token_type)
 
         nvidia_smi.nvmlInit()
         gpu_index: int = 0
@@ -52,12 +57,25 @@ class Encoder:
         for chunk in chunk_generator:
             tokens_ids: list[int] = []
             tokens: list[str] = []
+            payloads: dict[dict] = {}
             for row in chunk:
-                tokens_ids.append(row['id'])
+                token_id = row['id']
+                tokens_ids.append(token_id)
                 tokens.append(row['token'])
+                payloads[token_id] = {
+                    'title': row['title'],
+                    'abstract': row['abstract'],
+                    'keywords': row['keywords'],
+                    'url': row['url'],
+                    'author': row['author'],
+                    'token': row['token'],
+                    'doc_id': row['data_id']
+                }
 
-            batch_size: int = 64  # self._get_batch_size(chunk)
+            batch_size: int = 16 # self._get_batch_size(chunk)
             batch_encoded: bool = False
+            # The batch_size is reduced by half until the encoding process is successful if
+            # the encoding process fails due to OutOfMemoryError.
             while batch_size > 0 and not batch_encoded:
                 generator_length: int = len(chunk) // batch_size
                 generator: Iterator[tuple[list[int], list[str]]] = self._batch_generator(tokens_ids, tokens, batch_size)
@@ -68,7 +86,7 @@ class Encoder:
                         not_encoded_tokens_ids: list[int] = []
                         not_encoded_tokens: list[str] = []
                         for j, token_id in enumerate(batch_tokens_ids):
-                            if not database.embeddings_exists(token_id, self.model_name):
+                            if not database.id_exists_in_qdrant(token_id, self.index.collection_name):
                                 not_encoded_tokens_ids.append(token_id)
                                 not_encoded_tokens.append(batch[j])
                         batch = not_encoded_tokens
@@ -79,7 +97,20 @@ class Encoder:
                             logger.debug(f"Batch {i} is empty. Skipping...")
                             continue
                         embeddings: torch.tensor = self._encode_batch(batch)
-                        database.embeddings_insert(batch_tokens_ids, embeddings, self.model_name)
+                        records: list[PointStruct] = []
+                        for j, token_id in enumerate(batch_tokens_ids):
+                            records.append(
+                                PointStruct(
+                                    vector=embeddings[j].tolist(),
+                                    payload=payloads[token_id],
+                                    id=token_id
+                                )
+                            )
+                        logger.debug(f"Inserting batch {i} into Qdrant...")
+                        self.index.insert(records)
+                        database.insert_batch_in_qdrant(
+                            [(token_id, self.index.collection_name) for token_id in batch_tokens_ids]
+                        )
 
                     except OutOfMemoryError as e:
                         logger.debug(f"Failed at token_id: {batch_tokens_ids[0]}")
@@ -149,11 +180,12 @@ class Encoder:
 
 
 if __name__ == "__main__":
-    chunk_size: int = 1024 * 4
-    languages = ["pt"]
-    token_types = Tokenizer.token_types()
-    for model in config.MODELS:
-        logger.info(f"main: Model: {model}")
-        encoder: Encoder = Encoder(model_name=model)
-        tokens_generator: Iterator[list[RealDictRow]] = database.tokens_chunk_generator(encoder.model_name)
+    model = list(config.MODELS.keys())[0]
+    token_type = "sentence_with_keywords"
+    logger.info(f"main: Model: {model}")
+    encoder: Encoder = Encoder(model_name=model)
+    while True:
+        tokens_generator: Iterator[list[RealDictRow]] = database.tokens_chunk_generator(token_type=token_type)
         encoder.encode(tokens_generator)
+        logger.info("Encoder sleeping.")
+        time.sleep(300)

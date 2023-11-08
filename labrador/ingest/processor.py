@@ -17,15 +17,17 @@ limitations under the License.
 """
 
 import re
+import time
 import json
 import asyncio
+from typing import Iterator
 
 import asyncpg
 import pandas as pd
+from psycopg2.extras import RealDictRow
 
-from util import log
+from util import log, database
 import config
-from models import Webpage
 
 logger = log.configure_logger(__file__)
 log = log.log(logger)
@@ -48,58 +50,26 @@ class Processor:
         - https://www.nltk.org/book/ch05.html
         - Remove prefix from urls
     """
-    def __init__(self):
-        pass
+    def __init__(self, language="pt"):
+        # TODO
+        self.language = language
 
-    async def process_table(self):
-        insert_query = """
-            INSERT INTO data (
-                url, 
-                doi,
-                type,
-                author,
-                institute,
-                knowledge_area,
-                committee,
-                title_pt, 
-                title_en,
-                keywords_pt, 
-                keywords_en,
-                abstract_pt, 
-                abstract_en, 
-                publish_date,
-                raw_data_id,
-                url_path_suffix
-            ) 
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, to_date($14, 'YYYY-MM-DD'), $15, $16)
-            ON CONFLICT (raw_data_id)
-            DO UPDATE SET 
-                keywords_pt = EXCLUDED.keywords_pt;
-        """
+    def loop(self):
+        batch_size: int = 64
+        while True:
+            batch_generator: Iterator[list[RealDictRow]] = database.raw_data_batch_generator(batch_size=batch_size)
+            for batch in batch_generator:
+                df: pd.DataFrame = pd.DataFrame([dict(record) for record in batch])
+                records_to_insert: list[dict] = self._clean_dataframe(df)
+                if len(records_to_insert) > 0:
+                    database.clean_data_batch_insert(records_to_insert)
 
-        pool = await asyncpg.create_pool(
-            database=config.POSTGRESQL_DB_NAME,
-            user=config.POSTGRESQL_DB_USER,
-            password=config.POSTGRESQL_DB_PASSWORD,
-            host=config.POSTGRESQL_DB_HOST,
-            port=config.POSTGRESQL_DB_PORT,
-        )
-        async with pool.acquire() as conn:
-            await conn.set_type_codec(
-                'json',
-                encoder=json.dumps,
-                decoder=json.loads,
-                schema='pg_catalog'
-            )
-            data_records = await conn.fetch(f"SELECT * FROM raw_data ORDER BY id;")
-            df: pd.DataFrame = pd.DataFrame([dict(record) for record in data_records])
-            df = self._clean_dataframe(df)
-            records_to_insert = [row[1] for row in df.iterrows()]
-            async with conn.transaction():
-                await conn.executemany(insert_query, records_to_insert)
+            logger.info("No records to process. Sleeping for 5 minutes.")
+            time.sleep(300)
+            continue
 
     @log
-    def _clean_dataframe(self, df: pd.DataFrame):
+    def _clean_dataframe(self, df: pd.DataFrame) -> list[dict]:
         # Remove rows where title_pt or abstract_pt is NaN.
         df.dropna(subset=['title_pt', 'abstract_pt'], inplace=True)
 
@@ -141,9 +111,12 @@ class Processor:
 
         df['keywords_pt'] = df['keywords_pt'].apply(self.clean_keywords)
 
-        df['url_path_suffix'] = df['url'].apply(lambda x: Webpage.extract_path_suffix(x))
+        df['url_path_suffix'] = df['url'].apply(lambda x: self.extract_path_suffix(x))
 
-        return df
+        df.drop(columns=['cleaned'], inplace=True)
+        df.rename(columns={'id': 'raw_data_id'}, inplace=True)
+
+        return df.to_dict(orient='records')
 
     @staticmethod
     def clean_keywords(text: str) -> str:
@@ -219,7 +192,18 @@ class Processor:
         strings = [re.sub(zero_width_pattern, "", s) for s in strings]  # Remove zero-width characters
         return strings
 
+    @staticmethod
+    def remove_lang_from_url(url):
+        return re.sub(r'/\?&lang.*$', '', url)
+
+    @staticmethod
+    def extract_path_suffix(url):
+        pattern = r"disponiveis\/(.*\/td.*\d)"
+        match = re.search(pattern, url)
+        path_suffix = match.group()
+        return path_suffix
+
 
 if __name__ == '__main__':
     processor = Processor()
-    asyncio.run(processor.process_table())
+    processor.loop()
