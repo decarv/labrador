@@ -207,7 +207,7 @@ class AsyncDatabase:
         return id_of_inserted_row
 
     async def qrels_write(self, query_id: Union[int, str], doc_id: Union[int, str], relevance: Union[int, str]) -> None:
-        insert_query = """INSERT INTO qrels (query_id, data_id, relevance) VALUES (%s, %s, %s);"""
+        insert_query = """INSERT INTO qrels (query_id, doc_id, relevance) VALUES (%s, %s, %s);"""
         aconn = await self.getconn()
         async with aconn.cursor() as acur:
             try:
