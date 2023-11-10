@@ -29,19 +29,18 @@ async function streamData(query) {
     let success = false;
     const response = await fetch(`/search?query=${query}`);
     const reader = response.body.getReader();
-    let completeData = "";
-    while (true) {
-        const {value, done} = await reader.read();
-        if (done) break;
-        completeData += new TextDecoder().decode(value);
 
-        let endIndex = completeData.indexOf('}');
-        while (endIndex !== -1) {
-            const jsonStr = completeData.substring(0, endIndex + 1);
-            completeData = completeData.substring(endIndex + 1);
+    // Process stream chunk by chunk
+    while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+
+        const chunks = new TextDecoder().decode(value).split('\n'); // Assuming each JSON object ends with a newline
+        for (const chunk of chunks) {
+            if (chunk.trim() === '') continue; // Skip empty lines
 
             try {
-                const data = JSON.parse(jsonStr);
+                const data = JSON.parse(chunk);
                 if (data.success) {
                     processData(data);
                     if (data.done) {
@@ -54,11 +53,12 @@ async function streamData(query) {
                 }
             } catch (e) {
                 console.error("Error parsing JSON:", e);
+                // Handle incomplete or broken JSON chunk
             }
-            endIndex = completeData.indexOf('}');
         }
+        if (success) break;
     }
-    return success;
+    // Additional code to handle the end of streaming, if necessary
 }
 
 function sleep(ms) {
