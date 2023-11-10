@@ -36,7 +36,7 @@ async function streamData(query) {
         const { value, done } = await reader.read();
         const chunk = new TextDecoder().decode(value);
         consumedData += chunk;
-        let j = consumedData.indexOf('\n');
+        let j = consumedData.indexOf('\n', i);
         if (j === -1) {
             continue;
         }
