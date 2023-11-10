@@ -30,29 +30,35 @@ async function streamData(query) {
     const response = await fetch(`/search?query=${query}`);
     const reader = response.body.getReader();
     let completeData = "";
-
     while (true) {
-        const { value, done } = await reader.read();
-        const chunk = new TextDecoder().decode(value);
-        completeData += chunk;
-        try {
-            const data = JSON.parse(completeData);
-            if (data.success) {
-                processData(data);
-                if (data.done) {
-                    success = true;
+        const {value, done} = await reader.read();
+        if (done) break;
+        completeData += new TextDecoder().decode(value);
+
+        let endIndex = completeData.indexOf('}');
+        while (endIndex !== -1) {
+            const jsonStr = completeData.substring(0, endIndex + 1);
+            completeData = completeData.substring(endIndex + 1);
+
+            try {
+                const data = JSON.parse(jsonStr);
+                if (data.success) {
+                    processData(data);
+                    if (data.done) {
+                        success = true;
+                        break;
+                    }
+                } else {
+                    console.error("Error in data:", data);
                     break;
                 }
-                completeData = "";
-            } else {
-                console.error("Error in data:", data);
-                break;
+            } catch (e) {
+                console.error("Error parsing JSON:", e);
             }
-        } catch (e) {
-            if (completeData === "") break;
+            endIndex = completeData.indexOf('}');
         }
-        await sleep(50);
     }
+    return success;
 }
 
 function sleep(ms) {

@@ -107,7 +107,7 @@ async def search(request: Request) -> HTTPResponse:
         return sanic.response.json({"success": False, "error": "Search timed out"}, status=504)
 
     finally:
-        await response.send(json.dumps({"success": True, "queryId": -1, "hits": [], "done": False}))
+        await response.send(json.dumps({"success": True, "queryId": -1, "hits": [], "done": True}))
 
 
 @app.get("/annotate")
