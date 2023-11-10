@@ -85,7 +85,7 @@ async def search(request: Request) -> HTTPResponse:
         return sanic.response.json({"success": False, "error": "No query provided"}, status=400)
 
     response = await request.respond(content_type="application/json", status=200)
-
+    query_id = 0
     sent_hits_ids: set[int] = set()
     try:
         gather_results = await asyncio.gather(
@@ -107,7 +107,7 @@ async def search(request: Request) -> HTTPResponse:
         return sanic.response.json({"success": False, "error": "Search timed out"}, status=504)
 
     finally:
-        await response.send(json.dumps({"success": True, "queryId": -1, "hits": [], "done": True}) + "\n")
+        await response.send(json.dumps({"success": True, "queryId": query_id, "hits": [], "done": True}) + "\n")
 
 
 @app.get("/annotate")
