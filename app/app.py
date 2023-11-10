@@ -95,19 +95,19 @@ async def search(request: Request) -> HTTPResponse:
         query_id, ns_hits = gather_results
         structured_ns_hits = structure_hits(ns_hits, sent_hits_ids)
 
-        await response.send(json.dumps({"success": True, "queryId": query_id, "hits": structured_ns_hits, "done": False}))
+        await response.send(json.dumps({"success": True, "queryId": query_id, "hits": structured_ns_hits, "done": False}) + "\n")
 
         rs_hits = await app.ctx.repository_searcher.search_async(query)
 
         structured_rs_hits = structure_hits(rs_hits, sent_hits_ids)
 
-        await response.send(json.dumps({"success": True, "queryId": query_id, "hits": structured_rs_hits, "done": False}))
+        await response.send(json.dumps({"success": True, "queryId": query_id, "hits": structured_rs_hits, "done": False}) + "\n")
 
     except (TimeoutError, httpx.ReadTimeout, httpx.ConnectTimeout):
         return sanic.response.json({"success": False, "error": "Search timed out"}, status=504)
 
     finally:
-        await response.send(json.dumps({"success": True, "queryId": -1, "hits": [], "done": True}))
+        await response.send(json.dumps({"success": True, "queryId": -1, "hits": [], "done": True}) + "\n")
 
 
 @app.get("/annotate")
