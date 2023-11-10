@@ -43,7 +43,7 @@ class RepositorySearcher(Searcher):
         results: list[dict] = await self.db.select(
             """SELECT d.id as doc_id, d.title_pt as title, d.abstract_pt as abstract, d.keywords_pt as keywords, 
                       d.author, d.url
-                 FROM clean_data as d 
+                 FROM documents as d 
                 WHERE d.url_path_suffix = ANY(%s);""", var_args=(paths,))
 
         end = time.time()

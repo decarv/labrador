@@ -39,6 +39,7 @@ class Evaluator:
                 )
             except Searcher.SearcherError as e:
                 logger.error(f"Searcher : {type(e)} : {e}")
+                self._database.insert_error(f"Error inserting evaluation into database: {e}")
                 continue
 
             hits = {r['doc_id']: r for r in hits_records}
@@ -60,20 +61,25 @@ class Evaluator:
                 logger.error(f"Error inserting evaluation into database: {e}")
                 self._database.insert_error(f"Error inserting evaluation into database: {e}")
 
-    def measures(self, hits: list[dict], qrels: dict[int, int], ideal_hits: dict[int, int]):
+            precisions.append(precision)
+            ndcgs.append(ndcg)
+
+        print(f"Average Precision: {sum(precisions) / len(precisions)} | Average nDCG: {sum(ndcgs) / len(ndcgs)}")
+
+    def measures(self, hits: dict[int, dict], qrels: dict[int, int], ideal_hits: dict[int, int]):
         dcg = 0
         precision = 0
-        for i, hit in enumerate(hits):
-            if hit['id'] in qrels:
-                relevance = qrels[hit['id']]
+        for i, hit in enumerate(hits.values()):
+            if hit['doc_id'] in qrels:
+                relevance = qrels[hit['doc_id']]
                 if relevance > 3:
                     precision += 1
             else:
                 relevance = 0
-            dcg += 2 ** relevance - 1 / math.log2(i + 2)
+            dcg += (2 ** relevance - 1) / math.log2(i + 2)
 
         idcg = 0
         for i, hit in enumerate(ideal_hits):
-            idcg += 2 ** ideal_hits[hit] - 1 / math.log2(i + 2)
+            idcg += (2 ** ideal_hits[hit] - 1) / math.log2(i + 2)
 
         return precision / len(hits), dcg / idcg

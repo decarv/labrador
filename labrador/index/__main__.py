@@ -9,7 +9,7 @@ import config
 
 language: str = "pt"
 token_type: str = "sentence_with_keywords"
-model_name: str = list(config.MODELS.keys())[0]
+model_name: str = list(config.MODELS.keys())[1]
 
 db: database.Database = database.Database()
 
@@ -51,11 +51,13 @@ def run_encoder():
 
     id_ranges = get_id_ranges("tokens", num_encoder_workers)
     with Pool(processes=num_encoder_workers) as pool:
-        pool.map(encoder.loop, id_ranges)
+        pool.map(encoder.run, id_ranges)
 
 
 if __name__ == "__main__":
-    # run_tokenizer()
-    # encoder: Encoder = Encoder(db, model_name)
-    # encoder.loop()
-    # run_encoder()
+    encoder: Encoder = Encoder(db, model_name)
+    num_encoder_workers: int = 2
+
+    id_ranges = get_id_ranges("tokens", num_encoder_workers)
+    with Pool(processes=num_encoder_workers) as pool:
+        pool.map(encoder.run, id_ranges)

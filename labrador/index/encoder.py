@@ -17,6 +17,7 @@ limitations under the License.
 
 """
 import time
+from multiprocessing import Pool
 
 import torch
 from qdrant_client.models import PointStruct
@@ -27,7 +28,7 @@ from torch.cuda import OutOfMemoryError
 import nvidia_smi
 
 import config
-from index.index import NeuralIndex
+from tokenizer import Tokenizer
 from util.database import Database
 from util.log import configure_logger
 
@@ -50,42 +51,23 @@ class Encoder:
         gpu_index: int = 0
         self.handle = nvidia_smi.nvmlDeviceGetHandleByIndex(gpu_index)
 
-    def loop(self, id_range: tuple[int, int] = None):
+    def run(self, id_range: tuple[int, int] = None):
         if id_range is None:
             id_range = (1, self._database.select("""SELECT id FROM tokens ORDER BY id DESC LIMIT 1;""")[0]['id'])
 
-        while True:
-            tokens_batches: Iterator[list] = self._database.batch_generator(
-                """SELECT t.id, t.token, t.token_type
-                   FROM tokens AS t
-                   WHERE t.id not in (SELECT e.token_id FROM indexed AS i JOIN embeddings AS e ON i.embeddings_id = e.id)
-                   AND t.token_type = %s
-                   AND t.id BETWEEN %s AND %s
-                """,
-                (self.token_type, *id_range)
-            )
-            self.encode(tokens_batches)
-            logger.info("Encoder sleeping.")
-            time.sleep(3600)
+        tokens_batches: Iterator[list] = self._database.batch_generator(
+            """SELECT t.id, t.token, t.token_type
+               FROM tokens AS t
+               WHERE t.id not in (SELECT token_id FROM embeddings WHERE model_name = %s)
+               AND t.token_type = %s
+               AND t.id BETWEEN %s AND %s
+            """,
+            (self.model_name, self.token_type, *id_range)
+        )
+        self.encode(tokens_batches)
 
     def encode(self, batches: Iterator[list]):
         for batch in batches:
-            # tokens_ids: list[int] = []
-            # tokens: list[str] = []
-            # payloads: dict[dict] = {}
-            # for row in batch:
-            #     token_id = row['id']
-                # tokens_ids.append(token_id)
-                # tokens.append(row['token'])
-                # payloads[token_id] = {
-                #     'title': row['title'],
-                #     'abstract': row['abstract'],
-                #     'keywords': row['keywords'],
-                #     'url': row['url'],
-                #     'author': row['author'],
-                #     'token': row['token'],
-                #     'doc_id': row['data_id']
-                # }
 
             # minibatch_size is reduced by half until reaching 0, or encoding of whole batch is successful,
             # if the encoding process fails due to OutOfMemoryError.
@@ -123,7 +105,6 @@ class Encoder:
 
                 batch_encoded = True
 
-    @log
     def _encode_minibatch(self, batch: list[str]) -> torch.tensor:
         with torch.no_grad():
             torch.cuda.empty_cache()
@@ -174,3 +155,42 @@ class Encoder:
         info = nvidia_smi.nvmlDeviceGetMemoryInfo(self.handle)
         free_mem_mb = info.free
         return free_mem_mb
+
+
+def get_id_ranges(db, num_workers, model_name, token_type):
+    ids = [row['id'] for row in db.select(
+        f"""SELECT t.id 
+                  FROM tokens AS t
+                  WHERE t.id not in (SELECT token_id FROM embeddings WHERE model_name = %s) 
+                  AND token_type = %s ORDER BY id;""", (model_name, token_type,))]
+
+    if not ids:
+        logger.info(f"No tokens found for token_type {token_type}.")
+        return []
+
+    num_workers = min(len(ids), num_workers)
+
+    id_ranges = []
+    range_length = len(ids) // num_workers
+    first: int = 0
+    for i in range(num_workers):
+        last = range_length * (i + 1)
+        if last >= len(ids):
+            last = -1
+        id_ranges.append((ids[first], ids[last]))
+        first = last + 1
+    return id_ranges
+
+
+if __name__ == "__main__":
+    database: Database = Database()
+    num_encoder_workers: int = 2
+    while True:
+        for model_name in config.MODELS.keys():
+            for token_type in Tokenizer.token_types():
+                encoder: Encoder = Encoder(database, model_name)
+                id_ranges = get_id_ranges(database, num_encoder_workers, model_name, token_type)
+                if not id_ranges:
+                    continue
+                with Pool(processes=num_encoder_workers) as pool:
+                    pool.map(encoder.run, id_ranges)

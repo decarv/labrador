@@ -6,14 +6,14 @@ import qdrant_client
 
 import config
 from search.ns import NeuralSearcher
-from search.rs import RepositorySearcher
-from util import database
+from search.repository_searcher import RepositorySearcher
+from util.database import Database, AsyncDatabase
 
 query = "ataque cardíaco criança"
 
 
 async def main_async():
-    adb = database.AsyncDatabase()
+    adb = AsyncDatabase()
     await adb.conn_pool_init()
 
     rs = RepositorySearcher()
@@ -35,13 +35,13 @@ async def main_async():
 
 
 def main():
-    database.conn_pool_init()
-
-    rs = RepositorySearcher()
-    start = time.time()
-    hit_list = rs.search(query)
-    end = time.time()
-    print("RS: ", end - start)
+    db = Database()
+    #
+    # rs = RepositorySearcher()
+    # start = time.time()
+    # hit_list = rs.search(query)
+    # end = time.time()
+    # print("RS: ", end - start)
 
     ns = NeuralSearcher(
         client=qdrant_client.QdrantClient(url=config.QDRANT_HOST, port=config.QDRANT_GRPC_PORT),
@@ -57,4 +57,4 @@ def main():
 
 if __name__ == "__main__":
     main()
-    asyncio.run(main_async())
+    # asyncio.run(main_async())
