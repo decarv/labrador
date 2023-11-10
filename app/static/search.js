@@ -67,14 +67,28 @@ function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-function processData(data) {
+async function processData(data) {
     queryId = data.queryId;
-    data.hits.forEach((item) => {
-        const div = document.createElement('div');
-        div.classList.add('box');
-        div.id = `${item.doc_id}`;
-        div.style.display = 'block';
-        div.innerHTML = `
+    for (const item of data.hits) {
+        // Wrap the UI update in requestAnimationFrame
+        await new Promise(resolve => requestAnimationFrame(() => {
+            const div = createDocumentDiv(item);
+            documentDivQueue.push(div);
+            if (labeledDocuments === 0) {
+                hideLoadingModal();
+                documentContainer.style.display = 'block';
+                displayNextDocument();
+            }
+            resolve();
+        }));
+    }
+}
+function createDocumentDiv(data) {
+    const div = document.createElement('div');
+    div.classList.add('box');
+    div.id = `${item.doc_id}`;
+    div.style.display = 'block';
+    div.innerHTML = `
     <h2 id="title">${item.title}</h2>
     <p id="author"><small>${item.author}</small></p>
     <p id="abstract">${item.abstract}</p>
@@ -103,15 +117,7 @@ function processData(data) {
         <button id="annotate-button">Confirmar</button>
     </div>
     `;
-        documentDivQueue.push(div);
-    });
-
-    // If it is the first document to be labeled
-    if (labeledDocuments === 0) {
-        hideLoadingModal();
-        documentContainer.style.display = 'block';
-        displayNextDocument();
-    }
+    return div;
 }
 
 function displayNextDocument() {
