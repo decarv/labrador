@@ -47,6 +47,9 @@ class SearchResultObject:
 
 
 class Searcher(ABC):
+    class SearcherError(Exception):
+        pass
+
     def __init__(self, *args, **kwargs):
         self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
         if self.device == 'cpu':

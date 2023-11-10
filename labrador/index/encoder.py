@@ -27,113 +27,104 @@ from torch.cuda import OutOfMemoryError
 import nvidia_smi
 
 import config
-from index.indexer import QdrantIndexer
-from util import database, log
+from index.index import NeuralIndex
+from util.database import Database
+from util.log import configure_logger
 
-logger = log.configure_logger(__file__)
-log = log.log(logger)
+logger = configure_logger(__file__)
 
 
 class Encoder:
-    @log
-    def __init__(self, model_name: str, cache: bool = True, token_type: str = 'sentence_with_keywords'):
-        logger.debug("Initializing encoder...")
-
-        self.cache = cache
-        self.device = 'cuda:0'
+    """
+    TODO: Ideally, encoder should not have a token_type. It should fetch from the database and encode all tokens.
+        But for now, it is only encoding sentence_with_keywords tokens.
+    """
+    def __init__(self, database: Database, model_name: str, token_type: str = 'sentence_with_keywords'):
+        self._database = database
         self.model_name = model_name
         self.token_type = token_type
-        self.model = SentenceTransformer(model_name, device=self.device, cache_folder=config.MODEL_CACHE_DIR)
-        self.index = QdrantIndexer(self.model_name, token_type=self.token_type)
+
+        self.model = SentenceTransformer(model_name, device='cuda:0', cache_folder=config.MODEL_CACHE_DIR)
 
         nvidia_smi.nvmlInit()
         gpu_index: int = 0
         self.handle = nvidia_smi.nvmlDeviceGetHandleByIndex(gpu_index)
 
-        logger.debug("Done initializing encoder.")
+    def loop(self, id_range: tuple[int, int] = None):
+        if id_range is None:
+            id_range = (1, self._database.select("""SELECT id FROM tokens ORDER BY id DESC LIMIT 1;""")[0]['id'])
 
-    @log
-    def encode(self, chunk_generator: Iterator[list[RealDictRow]]):
-        for chunk in chunk_generator:
-            tokens_ids: list[int] = []
-            tokens: list[str] = []
-            payloads: dict[dict] = {}
-            for row in chunk:
-                token_id = row['id']
-                tokens_ids.append(token_id)
-                tokens.append(row['token'])
-                payloads[token_id] = {
-                    'title': row['title'],
-                    'abstract': row['abstract'],
-                    'keywords': row['keywords'],
-                    'url': row['url'],
-                    'author': row['author'],
-                    'token': row['token'],
-                    'doc_id': row['data_id']
-                }
+        while True:
+            tokens_batches: Iterator[list] = self._database.batch_generator(
+                """SELECT t.id, t.token, t.token_type
+                   FROM tokens AS t
+                   WHERE t.id not in (SELECT e.token_id FROM indexed AS i JOIN embeddings AS e ON i.embeddings_id = e.id)
+                   AND t.token_type = %s
+                   AND t.id BETWEEN %s AND %s
+                """,
+                (self.token_type, *id_range)
+            )
+            self.encode(tokens_batches)
+            logger.info("Encoder sleeping.")
+            time.sleep(3600)
 
-            batch_size: int = 16 # self._get_batch_size(chunk)
+    def encode(self, batches: Iterator[list]):
+        for batch in batches:
+            # tokens_ids: list[int] = []
+            # tokens: list[str] = []
+            # payloads: dict[dict] = {}
+            # for row in batch:
+            #     token_id = row['id']
+                # tokens_ids.append(token_id)
+                # tokens.append(row['token'])
+                # payloads[token_id] = {
+                #     'title': row['title'],
+                #     'abstract': row['abstract'],
+                #     'keywords': row['keywords'],
+                #     'url': row['url'],
+                #     'author': row['author'],
+                #     'token': row['token'],
+                #     'doc_id': row['data_id']
+                # }
+
+            # minibatch_size is reduced by half until reaching 0, or encoding of whole batch is successful,
+            # if the encoding process fails due to OutOfMemoryError.
+            first: int = 0
             batch_encoded: bool = False
-            # The batch_size is reduced by half until the encoding process is successful if
-            # the encoding process fails due to OutOfMemoryError.
-            while batch_size > 0 and not batch_encoded:
-                generator_length: int = len(chunk) // batch_size
-                generator: Iterator[tuple[list[int], list[str]]] = self._batch_generator(tokens_ids, tokens, batch_size)
-                for i, (batch_tokens_ids, batch) in enumerate(generator):
+            minibatch_size: int = 16  # self._get_batch_size(chunk)
+            while minibatch_size > 0 and not batch_encoded:
+                generator: Iterator[list[dict]] = self._minibatch_generator(batch, first, minibatch_size)
+                for i, minibatch in enumerate(generator):
                     try:
-                        logger.debug(f"Encoding batch {i} of {generator_length}")
-                        logger.debug("Filtering already encoded tokens...")
-                        not_encoded_tokens_ids: list[int] = []
-                        not_encoded_tokens: list[str] = []
-                        for j, token_id in enumerate(batch_tokens_ids):
-                            if not database.id_exists_in_qdrant(token_id, self.index.collection_name):
-                                not_encoded_tokens_ids.append(token_id)
-                                not_encoded_tokens.append(batch[j])
-                        batch = not_encoded_tokens
-                        batch_tokens_ids = not_encoded_tokens_ids
-                        logger.debug(f"Batch filtered. Length is now {len(batch)}")
+                        minibatch_tokens: list[str] = [row['token'] for row in minibatch]
+                        minibatch_tokens_ids: list[int] = [row['id'] for row in minibatch]
 
-                        if len(batch) == 0:
-                            logger.debug(f"Batch {i} is empty. Skipping...")
-                            continue
-                        embeddings: torch.tensor = self._encode_batch(batch)
-                        records: list[PointStruct] = []
-                        for j, token_id in enumerate(batch_tokens_ids):
-                            records.append(
-                                PointStruct(
-                                    vector=embeddings[j].tolist(),
-                                    payload=payloads[token_id],
-                                    id=token_id
-                                )
-                            )
-                        logger.debug(f"Inserting batch {i} into Qdrant...")
-                        self.index.insert(records)
-                        database.insert_batch_in_qdrant(
-                            [(token_id, self.index.collection_name) for token_id in batch_tokens_ids]
+                        embeddings: torch.tensor = self._encode_minibatch(minibatch_tokens)
+
+                        self._database.insert_many(
+                            """INSERT INTO embeddings (token_id, vector, model_name) VALUES (%s, %s, %s)""",
+                            [
+                                (token_id, vector.tolist(), self.model_name)
+                                for token_id, vector in zip(minibatch_tokens_ids, embeddings)
+                            ]
                         )
 
+                        first = (i + 1) * minibatch_size
+
                     except OutOfMemoryError as e:
-                        logger.debug(f"Failed at token_id: {batch_tokens_ids[0]}")
-                        tokens_ids = tokens_ids[i * batch_size:]
-                        tokens = tokens[i * batch_size:]
-                        batch_size //= 2
-                        logger.debug(f"{e}: Reducing batch size to {batch_size}")
-                        logger.debug(f"Restarting encoding process at token_id: {tokens_ids[0]}")
+                        minibatch_size //= 2
+                        logger.warning(f"{e}: Reducing batch size to {minibatch_size}")
                         break
 
                     except Exception as e:
-                        error_message: str = (
-                            f"Ex: {e} | "
-                            f"batch: {batch} | "
-                            f"batch_size {batch_size} | "
-                            f"ids: {batch_tokens_ids}"
-                        )
+                        error_message: str = f"Encoder : {type(e)} : {e}"
                         logger.exception(error_message)
-                        database.errors_insert(error_message)
+                        self._database.insert_error(error_message)
+
                 batch_encoded = True
 
     @log
-    def _encode_batch(self, batch: list[str]) -> torch.tensor:
+    def _encode_minibatch(self, batch: list[str]) -> torch.tensor:
         with torch.no_grad():
             torch.cuda.empty_cache()
             embeddings: torch.tensor = self.model.encode(
@@ -142,7 +133,13 @@ class Encoder:
             return embeddings
 
     @staticmethod
-    def _batch_generator(ids: list[int], data: list[str], batch_size: int) -> Iterator[tuple[list[int], list[str]]]:
+    def _minibatch_generator(batch: list[dict], first: int, minibatch_size: int) -> Iterator[list[dict]]:
+        """Creates a minibatch generator from a batch of tokens."""
+        for i in range(first, len(batch), minibatch_size):
+            yield batch[i:i + minibatch_size]
+
+    @staticmethod
+    def _minibatch_generator_depr(ids: list[int], data: list[str], batch_size: int) -> Iterator[tuple[list[int], list[str]]]:
         for i in range(0, len(data), batch_size):
             yield ids[i:i + batch_size], data[i:i + batch_size]
 
@@ -177,15 +174,3 @@ class Encoder:
         info = nvidia_smi.nvmlDeviceGetMemoryInfo(self.handle)
         free_mem_mb = info.free
         return free_mem_mb
-
-
-if __name__ == "__main__":
-    model = list(config.MODELS.keys())[0]
-    token_type = "sentence_with_keywords"
-    logger.info(f"main: Model: {model}")
-    encoder: Encoder = Encoder(model_name=model)
-    while True:
-        tokens_generator: Iterator[list[RealDictRow]] = database.tokens_chunk_generator(token_type=token_type)
-        encoder.encode(tokens_generator)
-        logger.info("Encoder sleeping.")
-        time.sleep(300)

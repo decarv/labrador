@@ -15,6 +15,10 @@ labrador/labrador.egg-info/SOURCES.txt
 labrador/labrador.egg-info/dependency_links.txt
 labrador/labrador.egg-info/top_level.txt
 labrador/search/__init__.py
+labrador/search/__main__.py
+labrador/search/keyword_searcher.py
+labrador/search/ns.py
+labrador/search/rs.py
 labrador/search/searcher.py
 labrador/util/__init__.py
 labrador/util/database.py

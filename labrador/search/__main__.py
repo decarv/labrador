@@ -23,7 +23,7 @@ async def main_async():
     print("RS Async: ", end - start)
 
     ns = NeuralSearcher(
-        client=qdrant_client.QdrantClient(url=config.QDRANT_HOST, port=config.QDRANT_PORT),
+        client=qdrant_client.QdrantClient(url=config.QDRANT_HOST, port=config.QDRANT_GRPC_PORT),
         model_name=list(config.MODELS.keys())[0],
         token_type="sentence_with_keywords",
         language="pt",
@@ -44,7 +44,7 @@ def main():
     print("RS: ", end - start)
 
     ns = NeuralSearcher(
-        client=qdrant_client.QdrantClient(url=config.QDRANT_HOST, port=config.QDRANT_PORT),
+        client=qdrant_client.QdrantClient(url=config.QDRANT_HOST, port=config.QDRANT_GRPC_PORT),
         model_name=list(config.MODELS.keys())[0],
         token_type="sentence_with_keywords",
         language="pt",

@@ -22,7 +22,7 @@ from search.searcher import SearchResultObject
 from search.ns import NeuralSearcher, LocalNeuralSearcher
 from search.rs import RepositorySearcher
 
-from config import APP_DIR, QDRANT_HOST, QDRANT_PORT
+from config import APP_DIR, QDRANT_HOST, QDRANT_GRPC_PORT
 from util import database, log
 
 STATIC_DIR: str = os.path.join(APP_DIR, "static")
@@ -48,7 +48,7 @@ async def init_resources(app, loop):
     app.ctx.token_type = "sentence_with_keywords"
 
     app.ctx.collection_name = utils.collection_name(app.ctx.model_name, app.ctx.token_type)
-    app.ctx.client = qdrant_client.QdrantClient(QDRANT_HOST, port=QDRANT_PORT)
+    app.ctx.client = qdrant_client.QdrantClient(QDRANT_HOST, port=QDRANT_GRPC_PORT)
     app.ctx.neural_searcher = NeuralSearcher(
         client=app.ctx.client,
         model_name=app.ctx.model_name, collection_name=app.ctx.collection_name,

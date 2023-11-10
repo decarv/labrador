@@ -21,6 +21,7 @@ import datetime
 from typing import Iterator, Optional, Union, Iterable
 
 import psycopg
+from psycopg.rows import dict_row
 import psycopg_pool
 import asyncpg
 import psycopg2
@@ -33,15 +34,97 @@ from config import POSTGRESQL_DB_NAME, POSTGRESQL_DB_USER, POSTGRESQL_DB_PASSWOR
     POSTGRESQL_DB_PORT
 from ingest.models import RawData
 
-from util import log
+from util.log import log, configure_logger
 import asyncio
-from psycopg.rows import dict_row
 
-logger = log.configure_logger(__file__)
-log = log.log(logger)
+configure_logger(__file__)
 
-conn_pool: Optional[psycopg_pool.ConnectionPool] = None
 
+class Database:
+    """
+    TODO: expand error handling
+    """
+    class DatabaseError(Exception):
+        pass
+
+    def __init__(self):
+        self._conninfo: str = config.POSTGRESQL_URL
+        self._conn_pool: Optional[psycopg_pool.ConnectionPool] = None
+        self.conn_pool_init()
+
+    def conn_pool_init(self, minconn: int = 1, maxconn: int = 30):
+        self._conn_pool = psycopg_pool.ConnectionPool(conninfo=self._conninfo, min_size=minconn, max_size=maxconn,)
+
+    def getconn(self):
+        if self._conn_pool is None:
+            raise Database.DatabaseError("Connection pool is not initialized.")
+        return self._conn_pool.getconn()
+
+    def putconn(self, conn):
+        if self._conn_pool is None:
+            raise Database.DatabaseError("Connection pool is not initialized.")
+        return self._conn_pool.putconn(conn)
+
+    def batch_generator(self, query: str, var_args: Optional[tuple] = None, batch_size: int = 32) -> Iterator[list[dict]]:
+        conn = self.getconn()
+        with conn.cursor(row_factory=dict_row) as cur:
+            if var_args is None:
+                cur.execute(query)
+            else:
+                cur.execute(query, var_args)
+            while True:
+                instances = cur.fetchmany(batch_size)
+                if not instances:
+                    break
+                yield instances
+        self.putconn(conn)
+
+    def insert(self, query: str, params: tuple):
+        conn = self.getconn()
+        try:
+            with conn.cursor() as cur:
+                cur.execute(query, params)
+                conn.commit()
+        except Exception as e:
+            raise Database.DatabaseError(f"Error inserting many rows: {e}")
+        self.putconn(conn)
+
+    def insert_many(self, query: str, params: list[tuple] = None):
+        conn = self.getconn()
+        try:
+            with conn.cursor() as cur:
+                cur.executemany(query, params)
+                conn.commit()
+        except Exception as e:
+            raise Database.DatabaseError(f"Error inserting many rows: {e}")
+        self.putconn(conn)
+
+    def insert_error(self, message: str) -> None:
+        conn = self.getconn()
+        try:
+            with conn.cursor(row_factory=dict_row) as cursor:
+                curr_time = datetime.datetime.now(datetime.timezone.utc)
+                cursor.execute(
+                    f"""INSERT INTO errors (message, timestamptz) 
+                    VALUES (%s, %s);""",
+                    (message, curr_time)
+                )
+                conn.commit()
+        except Exception as e:
+            raise Database.DatabaseError(f"{type(e)} : {e}")
+        finally:
+            self.putconn(conn)
+
+    def select(self, query, var_args=None):
+        conn = self.getconn()
+        with conn.cursor(row_factory=dict_row) as cur:
+            if var_args is None:
+                cur.execute(query)
+            else:
+                cur.execute(query, var_args)
+            results = cur.fetchall()
+        self.putconn(conn)
+        return results
 
 class AsyncDatabase:
     class AsyncDatabaseError(Exception):
@@ -70,6 +153,17 @@ class AsyncDatabase:
         if self._async_conn_pool is None:
             raise AsyncDatabase.AsyncDatabaseError("Connection pool is not initialized.")
         return await self._async_conn_pool.putconn(conn)
+
+    async def batch_generator(self, query: str, batch_size: int = 1024) -> Iterator[list]:
+        conn = await self.getconn()
+        async with conn.cursor(row_factory=dict_row) as cur:
+            await cur.execute(query)
+            while True:
+                instances = await cur.fetchmany(batch_size)
+                if not instances:
+                    break
+                yield instances
+        await self.putconn(conn)
 
     async def select(self, query, var_args=None):
         conn = await self.getconn()

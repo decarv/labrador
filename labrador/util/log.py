@@ -24,8 +24,11 @@ from logging import handlers
 
 import config
 
+logger = None
+
 
 def configure_logger(path):
+    global logger
     # Get log name and filename
     full_path = os.path.abspath(path)
     filename = os.path.basename(full_path)
@@ -55,13 +58,15 @@ def configure_logger(path):
     return logger
 
 
-def log(logger):
+def log(func):
     """
     Decorator for automatic logging.
     """
     def decorator(func):
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
+            if logger is None:
+                raise Exception("LOGGER is not configured. Call configure_logger() before using @log.")
             try:
                 logger.debug(f"Running {func.__name__}")
                 s = time.time()
