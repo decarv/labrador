@@ -3,7 +3,7 @@ const instructionsContainer = document.getElementById('instructions-container');
 const searchContainer = document.getElementById('search-container');
 const documentContainer = document.getElementById('document-container');
 
-let documentDivQueue = []
+let documentDivPool = []
 let started = false;
 let labeledDocuments = 0;
 let confirmButton = null;
@@ -22,12 +22,19 @@ document.getElementById('search-form').addEventListener('submit', async (event) 
     instructionsContainer.style.display = 'none';
     searchContainer.style.display = 'none';
     showLoadingModal();
-    await streamData(query);
+
+    let uid = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+    await makeRequests(uid, query);
 });
 
-async function streamData(query) {
+async function makeRequests(uid, query) {
+    await receiveData(uid, query, `/neural_search?query=${query}&uid=${uid}`);
+    await receiveData(uid, query, `/repository_search?query=${query}&uid=${uid}`);
+}
+
+async function receiveData(uid, query, responseInput) {
     let success = false;
-    const response = await fetch(`/search?query=${query}`);
+    const response = await fetch(responseInput);
     const reader = response.body.getReader();
     let consumedData = "";
     let i = 0;
@@ -46,10 +53,7 @@ async function streamData(query) {
             const data = JSON.parse(nextJsonString);
             if (data.success) {
                 processData(data);
-                if (data.done) {
-                    success = true;
-                    break;
-                }
+                return;
             } else {
                 console.error("Error in data:", data);
                 break;
@@ -103,7 +107,7 @@ function processData(data) {
         <button id="annotate-button">Confirmar</button>
     </div>
     `;
-        documentDivQueue.push(div);
+        documentDivPool.push(div);
     });
 
     // If it is the first document to be labeled
@@ -115,13 +119,15 @@ function processData(data) {
 }
 
 function displayNextDocument() {
-    if (documentDivQueue.length === 0) {
+    if (documentDivPool.length === 0) {
         showThankYouModal();
         return;
     }
-    currentDisplayedDocument = documentDivQueue[documentDivQueue.length-1];
+    let randomIndex = Math.floor(Math.random() * documentDivPool.length);
+    currentDisplayedDocument = documentDivPool[randomIndex];
     documentContainer.appendChild(currentDisplayedDocument);
-    documentDivQueue.pop();
+    documentDivPool.splice(randomIndex, 1);
+
     labeledDocuments++;
 }
 

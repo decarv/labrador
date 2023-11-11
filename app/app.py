@@ -60,6 +60,8 @@ async def init_resources(app, loop):
 
     app.ctx.client_ip_table = {}
 
+    app.ctx.shared_resources = {}
+
     logger.info("Resources initialized")
 
 
@@ -72,9 +74,8 @@ async def start_periodic_tasks(app, loop):
 async def index(request: Request) -> HTTPResponse:
     return await response.file(os.path.join(STATIC_DIR, "index.html"))
 
-
 @app.get("/search")
-@limiter.limit("5 per minute")
+@limiter.limit("15 per minute")
 async def search(request: Request) -> HTTPResponse:
     if disallow_ip(request.ip):
         return sanic.response.json({"success": False, "error": "Too many requests from this IP. Chill..."}, status=429)
@@ -110,6 +111,66 @@ async def search(request: Request) -> HTTPResponse:
     finally:
         response = await request.respond(content_type="application/json", status=200)
         await response.send(json.dumps({"success": True, "queryId": query_id, "hits": [], "done": True}) + "\n")
+
+
+@app.get("/neural_search")
+@limiter.limit("15 per minute")
+async def neural_search(request: Request) -> HTTPResponse:
+    if disallow_ip(request.ip):
+        return sanic.response.json({"success": False, "error": "Too many requests from this IP. Chill..."}, status=429)
+    update_client_ip_table(app, request.ip)
+    query = request.args.get("query", "").strip()
+    uid = request.args.get("uid", "").strip()
+    if query == "":
+        return sanic.response.json({"success": False, "error": "No query provided"}, status=400)
+    if uid == "":
+        return sanic.response.json({"success": False, "error": "No uid"}, status=400)
+    if uid not in app.ctx.shared_resources:
+        app.ctx.shared_resources[uid] = {}
+        app.ctx.shared_resources[uid]['sent_hits'] = set()
+
+    query_id = 0
+    response = await request.respond(content_type="application/json", status=200)
+    try:
+        query_id, ns_hits = await asyncio.gather(
+            *(app.ctx.adb.queries_write(query),
+              app.ctx.neural_searcher.search_async(query))
+        )
+        structured_ns_hits = structure_hits(ns_hits, app.ctx.shared_resources[uid]['sent_hits'])
+
+        await response.send(json.dumps({"success": True, "queryId": query_id, "hits": structured_ns_hits}) + "\n")
+    except (TimeoutError, httpx.ReadTimeout, httpx.ConnectTimeout):
+        return response.json({"success": False, "error": "Neural search timed out"}, status=504)
+
+
+@app.get("/repository_search")
+@limiter.limit("15 per minute")
+async def repository_search(request: Request) -> HTTPResponse:
+    if disallow_ip(request.ip):
+        return sanic.response.json({"success": False, "error": "Too many requests from this IP. Chill..."}, status=429)
+    update_client_ip_table(app, request.ip)
+    query = request.args.get("query", "").strip()
+    uid = request.args.get("uid", "").strip()
+    if query == "":
+        return sanic.response.json({"success": False, "error": "No query provided"}, status=400)
+    if uid == "":
+        return sanic.response.json({"success": False, "error": "No uid"}, status=400)
+
+    if uid not in app.ctx.shared_resources:
+        app.ctx.shared_resources[uid] = {}
+        app.ctx.shared_resources[uid]['sent_hits'] = set()
+
+    query_id = 0
+    response = await request.respond(content_type="application/json", status=200)
+    try:
+        query_id, rs_hits = await asyncio.gather(
+            *(app.ctx.adb.queries_write(query),
+              app.ctx.repository_searcher.search_async(query))
+        )
+        structured_rs_hits = structure_hits(rs_hits, app.ctx.shared_resources[uid]['sent_hits'])
+        await response.send(json.dumps({"success": True, "queryId": query_id, "hits": structured_rs_hits}) + "\n")
+    except (TimeoutError, httpx.ReadTimeout, httpx.ConnectTimeout):
+        return response.json({"success": False, "error": "Repository search timed out"}, status=504)
 
 
 @app.get("/annotate")
