@@ -97,6 +97,7 @@ async def search(request: Request) -> HTTPResponse:
 
         await response.send(json.dumps({"success": True, "queryId": query_id, "hits": structured_ns_hits, "done": False}) + "\n")
 
+        response = await request.respond(content_type="application/json", status=200)
         rs_hits = await app.ctx.repository_searcher.search_async(query)
 
         structured_rs_hits = structure_hits(rs_hits, sent_hits_ids)
@@ -107,6 +108,7 @@ async def search(request: Request) -> HTTPResponse:
         return sanic.response.json({"success": False, "error": "Search timed out"}, status=504)
 
     finally:
+        response = await request.respond(content_type="application/json", status=200)
         await response.send(json.dumps({"success": True, "queryId": query_id, "hits": [], "done": True}) + "\n")
 
 
