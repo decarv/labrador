@@ -184,7 +184,7 @@ class AsyncDatabase:
 
     async def queries_write(self, query):
         select_query = """SELECT id FROM queries WHERE query = %s;"""
-        insert_query = """INSERT INTO queries (query) VALUES (%s) ON CONFLICT DO NOTHING RETURNING id;"""
+        insert_query = """INSERT INTO queries (query) VALUES (%s) ON CONFLICT (query) DO NOTHING RETURNING id;"""
         aconn = await self.getconn()
         async with aconn.cursor() as acur:
             try:
