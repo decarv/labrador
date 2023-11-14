@@ -19,7 +19,7 @@ from labrador.util import utils, database, log
 from labrador.dense.searcher import NeuralSearcher
 from labrador.repository_searcher import RepositorySearcher
 
-from labrador.config import APP_DIR, QDRANT_HOST, QDRANT_GRPC_PORT
+from labrador.config import APP_DIR, QDRANT_HOST, QDRANT_GRPC_PORT, CERTS_DIR
 
 STATIC_DIR: str = os.path.join(APP_DIR, "static")
 TEMPLATE_DIR: str = os.path.join(APP_DIR, "templates")
@@ -277,4 +277,4 @@ def shuffle_hits(hits: list[dict], inserted: set[int]) -> list[dict]:
 
 
 if __name__ == "__main__":
-    app.run(host="127.0.0.1", port=443,  ssl="/home/decarv/projects/certs/decarv.myddns.me/", debug=True, auto_reload=True)
+    app.run(host="0.0.0.0", port=8443,  ssl=CERTS_DIR, debug=True, auto_reload=True)
