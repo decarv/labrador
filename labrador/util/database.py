@@ -184,19 +184,18 @@ class AsyncDatabase:
 
     async def queries_write(self, query):
         select_query = """SELECT id FROM queries WHERE query = %s;"""
-        insert_query = """INSERT INTO queries (query) VALUES (%s) RETURNING id;"""
+        insert_query = """INSERT INTO queries (query) VALUES (%s) ON CONFLICT DO NOTHING RETURNING id;"""
         aconn = await self.getconn()
         async with aconn.cursor() as acur:
             try:
-                await acur.execute(select_query, (query,))
+                await acur.execute(insert_query, (query,))
                 id_of_inserted_row = await acur.fetchone()
+                await aconn.commit()
                 if id_of_inserted_row is not None:
                     id_of_inserted_row = id_of_inserted_row[0]
                 else:
-                    await acur.execute(insert_query, (query,))
+                    await acur.execute(select_query, (query,))
                     id_of_inserted_row = await acur.fetchone()
-                    id_of_inserted_row = id_of_inserted_row[0]
-                    await aconn.commit()
             except Exception as e:
                 raise e
             finally:
