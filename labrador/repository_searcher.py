@@ -5,7 +5,7 @@ import bs4
 import httpx
 import requests
 
-import labrador.config
+from labrador import config
 from labrador.dense.processor import Processor
 from labrador.models import Searcher
 from labrador.util.log import logger
