@@ -32,10 +32,14 @@ async function makeRequests(uid, query) {
     await receiveData(uid, query, `/repository_search?query=${query}&uid=${uid}`);
 }
 
+function timeout(ms, error) {
+    return new Promise((_, reject) => setTimeout(() => reject(new Error(error)), ms));
+}
+
 async function receiveData(uid, query, responseInput) {
-    let success = false;
-    const response = await fetch(responseInput);
-    const reader = response.body.getReader();
+    const TIMEOUT_MS = 20000; // 20 seconds
+    const responsePromise = fetch(responseInput).then(response => response.body.getReader());
+    const reader = await Promise.race([responsePromise, timeout(TIMEOUT_MS, "Request timed out")]);
     let consumedData = "";
     let i = 0;
 
@@ -63,7 +67,7 @@ async function receiveData(uid, query, responseInput) {
                 throw e;
             }
         }
-        await sleep(5);
+        await sleep(10);
     }
 }
 
