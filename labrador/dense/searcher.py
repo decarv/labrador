@@ -63,10 +63,7 @@ class NeuralSearcher(Searcher):
 
         limit: int = top_k * 10
         import time
-        start = time.time()
         vector: np.ndarray = self.encoder_model.encode(query, show_progress_bar=False, convert_to_tensor=True)
-        end = time.time()
-        logger.info(f"Encoding took {end - start} seconds")
         start = time.time()
         response_msg = await self.client.async_grpc_points.Search(
             grpc.SearchPoints(
@@ -202,4 +199,19 @@ class LocalNeuralSearcher(Searcher):
 
 
 if __name__ == "__main__":
-    pass
+    from config import QDRANT_HOST, QDRANT_GRPC_PORT
+    import asyncio
+    async def main():
+        query = "O que é a covid-19?"
+        top_k = 10
+
+        client = qdrant_client.QdrantClient(QDRANT_HOST, port=QDRANT_GRPC_PORT)
+        ns = NeuralSearcher(
+            client=client,
+            model_name=list(config.MODELS.keys())[0],
+            token_type="sentence_with_keywords",
+            language="pt",
+        )
+        print(await ns.search_async(query, top_k))
+
+    asyncio.run(main())

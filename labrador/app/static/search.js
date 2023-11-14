@@ -28,8 +28,15 @@ document.getElementById('search-form').addEventListener('submit', async (event) 
 });
 
 async function makeRequests(uid, query) {
-    await receiveData(uid, query, `/neural_search?query=${query}&uid=${uid}`);
-    await receiveData(uid, query, `/repository_search?query=${query}&uid=${uid}`);
+    try {
+        await Promise.all([
+            receiveData(uid, query, `/neural_search?query=${query}&uid=${uid}`),
+            receiveData(uid, query, `/repository_search?query=${query}&uid=${uid}`)
+        ]);
+    } catch (error) {
+        console.error("Error in making requests:", error);
+        // Handle the error appropriately
+    }
 }
 
 function timeout(ms, error) {
@@ -37,7 +44,7 @@ function timeout(ms, error) {
 }
 
 async function receiveData(uid, query, responseInput) {
-    const TIMEOUT_MS = 20000; // 20 seconds
+    const TIMEOUT_MS = 30000; // 30 seconds
     const responsePromise = fetch(responseInput).then(response => response.body.getReader());
     const reader = await Promise.race([responsePromise, timeout(TIMEOUT_MS, "Request timed out")]);
     let consumedData = "";
@@ -56,8 +63,7 @@ async function receiveData(uid, query, responseInput) {
         try {
             const data = JSON.parse(nextJsonString);
             if (data.success) {
-                processData(data);
-                return;
+                return processData(data);
             } else {
                 console.error("Error in data:", data);
                 break;

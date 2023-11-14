@@ -30,6 +30,9 @@ log = log.log(logger)
 
 # app
 app = sanic.Sanic("Labrador")
+os.environ["SANIC_REQUEST_TIMEOUT"] = "30"
+os.environ["SANIC_RESPONSE_TIMEOUT"] = "30"
+
 app.static("/static", STATIC_DIR)
 limiter = Limiter(app)
 # jinja = jinja2.SanicJinja2(app, loader=jinja2.FileSystemLoader(TEMPLATE_DIR))
@@ -101,8 +104,9 @@ async def search(request: Request) -> HTTPResponse:
 
         await response.send(json.dumps({"success": True, "queryId": query_id, "hits": structured_rs_hits, "done": False}) + "\n")
 
-    except (TimeoutError, httpx.ReadTimeout, httpx.ConnectTimeout):
-        return sanic.response.json({"success": False, "error": "Search timed out"}, status=504)
+    except (TimeoutError, httpx.ReadTimeout, httpx.ConnectTimeout) as e:
+        print(type(e), e)
+        return sanic.response.json({"success": False, "error": f"Search timed out: {e}"}, status=504)
 
     finally:
         response = await request.respond(content_type="application/json", status=200)
@@ -135,8 +139,9 @@ async def neural_search(request: Request) -> HTTPResponse:
         structured_ns_hits = structure_hits(ns_hits, app.ctx.shared_resources[uid]['sent_hits'])
 
         await response.send(json.dumps({"success": True, "queryId": query_id, "hits": structured_ns_hits}) + "\n")
-    except (TimeoutError, httpx.ReadTimeout, httpx.ConnectTimeout):
-        return response.json({"success": False, "error": "Neural search timed out"}, status=504)
+    except (TimeoutError, httpx.ReadTimeout, httpx.ConnectTimeout) as e:
+        print(type(e), e)
+        return response.json({"success": False, "error": f"Neural search timed out: {e}"}, status=504)
 
 
 @app.get("/repository_search")
@@ -277,4 +282,4 @@ def shuffle_hits(hits: list[dict], inserted: set[int]) -> list[dict]:
 
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=8443,  ssl=CERTS_DIR, debug=True, auto_reload=True)
+    app.run(host="0.0.0.0", port=8443, ssl=CERTS_DIR, debug=True, auto_reload=True)
