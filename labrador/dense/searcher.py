@@ -2,6 +2,7 @@ import heapq
 import json
 import os
 from typing import Any
+import gc
 
 import numpy as np
 import qdrant_client
@@ -11,6 +12,7 @@ from google.protobuf.json_format import MessageToDict
 from qdrant_client import models, grpc
 from qdrant_client.http.models import ScoredPoint
 from sentence_transformers import SentenceTransformer
+from torch.cuda import OutOfMemoryError
 
 from labrador import config
 from labrador.config import MODEL_CACHE_DIR
@@ -63,7 +65,13 @@ class NeuralSearcher(Searcher):
 
         limit: int = top_k * 10
         import time
-        vector: np.ndarray = self.encoder_model.encode(query, show_progress_bar=False, convert_to_tensor=True)
+        try:
+            vector: np.ndarray = self.encoder_model.encode(query, show_progress_bar=False, convert_to_tensor=True)
+        except OutOfMemoryError:
+            gc.collect()
+            torch.cuda.empty_cache()
+            vector: np.ndarray = self.encoder_model.encode(query, show_progress_bar=False, convert_to_tensor=True)
+
         start = time.time()
         response_msg = await self.client.async_grpc_points.Search(
             grpc.SearchPoints(
