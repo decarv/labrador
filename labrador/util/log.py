@@ -22,7 +22,7 @@ import os
 import time
 from logging import handlers
 
-import config
+from labrador import config
 
 logger = None
 

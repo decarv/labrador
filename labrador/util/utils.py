@@ -17,6 +17,7 @@ limitations under the License.
 """
 
 import os
+import httpx
 import pickle
 import time
 from typing import Optional, Any
@@ -24,9 +25,8 @@ import requests
 import pandas as pd
 import torch
 
-import config
-from config import DATA_DIR
-import httpx
+from labrador import config
+from labrador.config import DATA_DIR
 
 
 def get_request(

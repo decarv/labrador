@@ -15,8 +15,16 @@ qrels: (q, d, r)
 import math
 
 from util.log import configure_logger
-from util.database import Database
-from search.searcher import Searcher
+from models.searcher import Searcher
+import time
+
+import qdrant_client
+
+
+import config
+from dense.searcher import NeuralSearcher
+from repository_searcher import RepositorySearcher
+from util.database import Database, AsyncDatabase
 
 logger = configure_logger(__file__)
 
@@ -83,3 +91,56 @@ class Evaluator:
             idcg += (2 ** ideal_hits[hit] - 1) / math.log2(i + 2)
 
         return precision / len(hits), dcg / idcg
+
+
+
+query = "ataque cardíaco criança"
+
+
+async def main_async():
+    adb = AsyncDatabase()
+    await adb.conn_pool_init()
+
+    rs = RepositorySearcher()
+    start = time.time()
+    hit_list = await rs.search_async(query, 10)
+    end = time.time()
+    print("RS Async: ", end - start)
+
+    ns = NeuralSearcher(
+        client=qdrant_client.QdrantClient(url=config.QDRANT_HOST, port=config.QDRANT_GRPC_PORT),
+        model_name=list(config.MODELS.keys())[0],
+        token_type="sentence_with_keywords",
+        language="pt",
+    )
+    start = time.time()
+    hit_list = await ns.search_async(query, 10)
+    end = time.time()
+    print("NS Async: ", end - start)
+
+
+def main():
+    db = Database()
+    #
+    # rs = RepositorySearcher()
+    # start = time.time()
+    # hit_list = rs.search(query)
+    # end = time.time()
+    # print("RS: ", end - start)
+
+    ns = NeuralSearcher(
+        client=qdrant_client.QdrantClient(url=config.QDRANT_HOST, port=config.QDRANT_GRPC_PORT),
+        model_name=list(config.MODELS.keys())[0],
+        token_type="sentence_with_keywords",
+        language="pt",
+    )
+    start = time.time()
+    hit_list = ns.search(query)
+    end = time.time()
+    print("NS: ", end - start)
+
+
+if __name__ == "__main__":
+    main()
+    # asyncio.run(main_async())
+

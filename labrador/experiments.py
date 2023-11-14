@@ -19,9 +19,9 @@ import json
 import os
 import time
 from typing import Iterator
-from index.encoder import Encoder
-from index.tokenizer import Tokenizer
-from search.ns import LocalNeuralSearcher
+from dense.encoder import Encoder
+from dense.tokenizer import Tokenizer
+from dense.searcher import LocalNeuralSearcher
 import datetime
 
 import config
