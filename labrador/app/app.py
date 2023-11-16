@@ -136,7 +136,7 @@ async def neural_search(request: Request) -> HTTPResponse:
               app.ctx.neural_searcher.search_async(query))
         )
         structured_ns_hits = structure_hits(ns_hits, app.ctx.shared_resources[uid]['sent_hits'])
-
+        logger.info(f"Neural Search Sending {len(structured_ns_hits)} hits")
         await response.send(json.dumps({"success": True, "queryId": query_id, "hits": structured_ns_hits}) + "\n")
     except (TimeoutError, httpx.ReadTimeout, httpx.ConnectTimeout) as e:
         return response.json({"success": False, "error": f"Neural search timed out: {e}"}, status=504)
@@ -165,6 +165,7 @@ async def keyword_search(request: Request) -> HTTPResponse:
         query_id, hits = await asyncio.run(app.ctx.adb.queries_write(query))
         app.ctx.keyword_searcher.search(query)
         structured_hits = structure_hits(hits, app.ctx.shared_resources[uid]['sent_hits'])
+        logger.info("Keyword Search Sending {} hits".format(len(structured_hits)))
         await response.send(json.dumps({"success": True, "queryId": query_id, "hits": structured_hits}) + "\n")
     except (TimeoutError, httpx.ReadTimeout, httpx.ConnectTimeout):
         return response.json({"success": False, "error": "Repository search timed out"}, status=504)
@@ -195,6 +196,7 @@ async def repository_search(request: Request) -> HTTPResponse:
               app.ctx.repository_searcher.search_async(query))
         )
         structured_rs_hits = structure_hits(rs_hits, app.ctx.shared_resources[uid]['sent_hits'])
+        logger.info(f"Repository Search Sending {len(structured_rs_hits)} hits")
         await response.send(json.dumps({"success": True, "queryId": query_id, "hits": structured_rs_hits}) + "\n")
     except (TimeoutError, httpx.ReadTimeout, httpx.ConnectTimeout):
         return response.json({"success": False, "error": "Repository search timed out"}, status=504)
