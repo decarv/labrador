@@ -30,9 +30,9 @@ document.getElementById('search-form').addEventListener('submit', async (event) 
 async function makeRequests(uid, query) {
     try {
         await Promise.all([
+            receiveData(uid, query, `/keyword_search?query=${query}&uid=${uid}`),
             receiveData(uid, query, `/neural_search?query=${query}&uid=${uid}`),
-            receiveData(uid, query, `/repository_search?query=${query}&uid=${uid}`),
-            receiveData(uid, query, `/keyword_search?query=${query}&uid=${uid}`)
+            receiveData(uid, query, `/repository_search?query=${query}&uid=${uid}`)
         ]);
     } catch (error) {
         console.error("Error in making requests:", error);
