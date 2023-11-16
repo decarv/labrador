@@ -141,7 +141,7 @@ async def neural_search(request: Request) -> HTTPResponse:
         structured_ns_hits = structure_hits(ns_hits, app.ctx.shared_resources[uid]['sent_hits'])
         end = time.time()
         logger.info(f"Neural Search Sending {len(structured_ns_hits)} hits")
-        await app.ctx.adb.query_times_write(end - start, "neural_retriever", query_id)
+        await app.ctx.adb.query_times_write(end - start, "neural_retriever", query_id[0])
         await response.send(json.dumps({"success": True, "queryId": query_id, "hits": structured_ns_hits}) + "\n")
     except (TimeoutError, httpx.ReadTimeout, httpx.ConnectTimeout) as e:
         return response.json({"success": False, "error": f"Neural search timed out: {e}"}, status=504)
@@ -173,7 +173,7 @@ async def keyword_search(request: Request) -> HTTPResponse:
         structured_hits = structure_hits(hits, app.ctx.shared_resources[uid]['sent_hits'])
         logger.info("Keyword Search Sending {} hits".format(len(structured_hits)))
         end = time.time()
-        await app.ctx.adb.query_times_write(end - start, "keyword_retriever", query_id)
+        await app.ctx.adb.query_times_write(end - start, "keyword_retriever", query_id[0])
         await response.send(json.dumps({"success": True, "queryId": query_id, "hits": structured_hits}) + "\n")
     except (TimeoutError, httpx.ReadTimeout, httpx.ConnectTimeout):
         return response.json({"success": False, "error": "Keyword search timed out"}, status=504)
@@ -207,7 +207,7 @@ async def repository_search(request: Request) -> HTTPResponse:
         structured_rs_hits = structure_hits(rs_hits, app.ctx.shared_resources[uid]['sent_hits'])
         end = time.time()
         logger.info(f"Repository Search Sending {len(structured_rs_hits)} hits")
-        await app.ctx.adb.query_times_write(end - start, "repository_retriever", query_id)
+        await app.ctx.adb.query_times_write(end - start, "repository_retriever", query_id[0])
         await response.send(json.dumps({"success": True, "queryId": query_id, "hits": structured_rs_hits}) + "\n")
     except (TimeoutError, httpx.ReadTimeout, httpx.ConnectTimeout):
         return response.json({"success": False, "error": "Repository search timed out"}, status=504)

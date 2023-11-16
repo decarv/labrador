@@ -218,7 +218,7 @@ class AsyncDatabase:
             finally:
                 await self.putconn(aconn)
 
-    async def query_times_write(self, speed, searcher, query_id) -> None:
+    async def query_times_write(self, speed, searcher, query_id: int) -> None:
         insert_query = """INSERT INTO query_times (time, searcher, query_id) VALUES (%s, %s, %s);"""
         aconn = await self.getconn()
         async with aconn.cursor() as acur:
