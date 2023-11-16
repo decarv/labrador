@@ -234,7 +234,6 @@ def update_client_ip_table(app, ip: str):
 
 async def periodic_tasks(app):
     while True:
-        logger.info("Running periodic tasks")
         client_ip_table_cleanup(app)
         await asyncio.sleep(300)
 
