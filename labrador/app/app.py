@@ -162,8 +162,8 @@ async def keyword_search(request: Request) -> HTTPResponse:
     query_id = 0
     response = await request.respond(content_type="application/json", status=200)
     try:
-        query_id, hits = await asyncio.run(app.ctx.adb.queries_write(query))
-        app.ctx.keyword_searcher.search(query)
+        query_id = await app.ctx.adb.queries_write(query)
+        hits = app.ctx.keyword_searcher.search(query)
         structured_hits = structure_hits(hits, app.ctx.shared_resources[uid]['sent_hits'])
         logger.info("Keyword Search Sending {} hits".format(len(structured_hits)))
         await response.send(json.dumps({"success": True, "queryId": query_id, "hits": structured_hits}) + "\n")
