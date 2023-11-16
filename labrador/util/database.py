@@ -214,6 +214,9 @@ class AsyncDatabase:
             finally:
                 await self.putconn(aconn)
 
+    async def insert_error(self, message):
+        await self.insert("""INSERT INTO errors (message) VALUES (%s);""", (message,))
+
 
 def conn_pool_init(minconn: int = 1, maxconn: int = 20):
     global conn_pool

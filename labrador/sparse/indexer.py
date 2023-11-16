@@ -1,3 +1,29 @@
+
+import pysolr
+from labrador.config import SOLR_URL
+from labrador.util.database import Database
+
+
+class SparseIndexer:
+    def __init__(self, db):
+        self.db = db
+
+    def create_index(self):
+        solr = pysolr.Solr(SOLR_URL, always_commit=True)
+        generator = self.db.batch_generator(
+            """SELECT id as doc_id, abstract_pt as abstract, title_pt as title, keywords_pt as keywords, author 
+                       FROM documents;""")
+        for batch in generator:
+            solr.add(batch)
+
+
+if __name__ == "__main__":
+    db = Database()
+    indexer = SparseIndexer(db)
+    indexer.create_index()
+
+
+
 #!/usr/bin/env python
 #
 # INDEX_DIR = "IndexFiles.index"

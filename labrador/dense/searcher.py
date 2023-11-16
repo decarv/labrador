@@ -21,10 +21,10 @@ from labrador.util import utils, database, log
 from labrador.util.log import logger
 
 
-class NeuralSearcher(Searcher):
+class DenseSearcher(Searcher):
 
     def __init__(self, client: qdrant_client.QdrantClient, *args, **kwargs):
-        super(NeuralSearcher, self).__init__(*args, **kwargs)
+        super(DenseSearcher, self).__init__(*args, **kwargs)
         for attr in ["token_type"]:
             if not getattr(self, attr):
                 raise ValueError(f"Missing required argument: {attr}.")
@@ -214,7 +214,7 @@ if __name__ == "__main__":
         top_k = 10
 
         client = qdrant_client.QdrantClient(QDRANT_HOST, port=QDRANT_GRPC_PORT)
-        ns = NeuralSearcher(
+        ns = DenseSearcher(
             client=client,
             model_name=list(config.MODELS.keys())[0],
             token_type="sentence_with_keywords",

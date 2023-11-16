@@ -22,7 +22,7 @@ import qdrant_client
 
 
 import config
-from dense.searcher import NeuralSearcher
+from dense.searcher import DenseSearcher
 from repository_searcher import RepositorySearcher
 from util.database import Database, AsyncDatabase
 
@@ -107,7 +107,7 @@ async def main_async():
     end = time.time()
     print("RS Async: ", end - start)
 
-    ns = NeuralSearcher(
+    ns = DenseSearcher(
         client=qdrant_client.QdrantClient(url=config.QDRANT_HOST, port=config.QDRANT_GRPC_PORT),
         model_name=list(config.MODELS.keys())[0],
         token_type="sentence_with_keywords",
@@ -128,7 +128,7 @@ def main():
     # end = time.time()
     # print("RS: ", end - start)
 
-    ns = NeuralSearcher(
+    ns = DenseSearcher(
         client=qdrant_client.QdrantClient(url=config.QDRANT_HOST, port=config.QDRANT_GRPC_PORT),
         model_name=list(config.MODELS.keys())[0],
         token_type="sentence_with_keywords",

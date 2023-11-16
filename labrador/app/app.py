@@ -16,7 +16,7 @@ from sanic_limiter import Limiter
 
 from labrador import config
 from labrador.util import utils, database, log
-from labrador.dense.searcher import NeuralSearcher
+from labrador.dense.searcher import DenseSearcher
 from labrador.repository_searcher import RepositorySearcher
 
 from labrador.config import APP_DIR, QDRANT_HOST, QDRANT_GRPC_PORT, CERTS_DIR
@@ -48,7 +48,7 @@ async def init_resources(app, loop):
 
     app.ctx.collection_name = utils.collection_name(app.ctx.model_name, app.ctx.token_type)
     app.ctx._index_client = qdrant_client.QdrantClient(QDRANT_HOST, port=QDRANT_GRPC_PORT)
-    app.ctx.neural_searcher = NeuralSearcher(
+    app.ctx.neural_searcher = DenseSearcher(
         client=app.ctx._index_client,
         model_name=app.ctx.model_name, collection_name=app.ctx.collection_name,
         token_type=app.ctx.token_type,
@@ -105,7 +105,6 @@ async def search(request: Request) -> HTTPResponse:
         await response.send(json.dumps({"success": True, "queryId": query_id, "hits": structured_rs_hits, "done": False}) + "\n")
 
     except (TimeoutError, httpx.ReadTimeout, httpx.ConnectTimeout) as e:
-        print(type(e), e)
         return sanic.response.json({"success": False, "error": f"Search timed out: {e}"}, status=504)
 
     finally:
@@ -140,8 +139,35 @@ async def neural_search(request: Request) -> HTTPResponse:
 
         await response.send(json.dumps({"success": True, "queryId": query_id, "hits": structured_ns_hits}) + "\n")
     except (TimeoutError, httpx.ReadTimeout, httpx.ConnectTimeout) as e:
-        print(type(e), e)
         return response.json({"success": False, "error": f"Neural search timed out: {e}"}, status=504)
+
+
+@app.get("/keyword_search")
+@limiter.limit("15 per minute")
+async def keyword_search(request: Request) -> HTTPResponse:
+    if disallow_ip(request.ip):
+        return sanic.response.json({"success": False, "error": "Too many requests from this IP. Chill..."}, status=429)
+    update_client_ip_table(app, request.ip)
+    query = request.args.get("query", "").strip()
+    uid = request.args.get("uid", "").strip()
+    if query == "":
+        return sanic.response.json({"success": False, "error": "No query provided"}, status=400)
+    if uid == "":
+        return sanic.response.json({"success": False, "error": "No uid"}, status=400)
+
+    if uid not in app.ctx.shared_resources:
+        app.ctx.shared_resources[uid] = {}
+        app.ctx.shared_resources[uid]['sent_hits'] = set()
+
+    query_id = 0
+    response = await request.respond(content_type="application/json", status=200)
+    try:
+        query_id, hits = await asyncio.run(app.ctx.adb.queries_write(query))
+        app.ctx.keyword_searcher.search(query)
+        structured_hits = structure_hits(hits, app.ctx.shared_resources[uid]['sent_hits'])
+        await response.send(json.dumps({"success": True, "queryId": query_id, "hits": structured_hits}) + "\n")
+    except (TimeoutError, httpx.ReadTimeout, httpx.ConnectTimeout):
+        return response.json({"success": False, "error": "Repository search timed out"}, status=504)
 
 
 @app.get("/repository_search")
@@ -191,6 +217,7 @@ async def annotate(request: Request) -> HTTPResponse:
         return sanic.response.json({"success": True})
     except Exception as e:
         logger.exception(e)
+        await app.ctx.adb.insert_error(e)
         return sanic.response.json({"error": "Failed to write annotation"}, status=500)
 
 
@@ -282,4 +309,4 @@ def shuffle_hits(hits: list[dict], inserted: set[int]) -> list[dict]:
 
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=8443, ssl=CERTS_DIR, debug=True, auto_reload=True)
+    app.run(host="0.0.0.0", port=8443, ssl=CERTS_DIR, debug=True, auto_reload=True, workers=1)
