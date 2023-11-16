@@ -56,7 +56,7 @@ async def init_resources(app, loop):
         token_type=app.ctx.token_type,
     )
     app.ctx.repository_searcher = RepositorySearcher(database=app.ctx.adb)
-    app.ctx.sparse_retriever = SparseSearcher(pysolr.Solr(config.SOLR_URL))
+    app.ctx.sparse_retriever = SparseSearcher(client=pysolr.Solr(config.SOLR_URL))
 
     app.ctx.client_ip_table = {}
 
@@ -164,7 +164,7 @@ async def keyword_search(request: Request) -> HTTPResponse:
     response = await request.respond(content_type="application/json", status=200)
     try:
         query_id = await app.ctx.adb.queries_write(query)
-        hits = app.ctx.sparse_retriever.search(query)
+        hits = app.ctx.sparse_retriever.search(query, top_k=10)
         structured_hits = structure_hits(hits, app.ctx.shared_resources[uid]['sent_hits'])
         logger.info("Keyword Search Sending {} hits".format(len(structured_hits)))
         await response.send(json.dumps({"success": True, "queryId": query_id, "hits": structured_hits}) + "\n")
