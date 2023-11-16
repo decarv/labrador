@@ -24,7 +24,6 @@ class RepositorySearcher(Searcher):
         page = 1
         documents_urls: list[str] = []
 
-        start = time.time()
         while len(documents_urls) < top_k:
             url: str = base_url + str(page)
             response: requests.Response = requests.get(url)
@@ -36,19 +35,13 @@ class RepositorySearcher(Searcher):
                 )
                 documents_urls += [div.a['href'] for div in divs]
             page += 1
-        end = time.time()
-        logger.info("RS requests took: " + str(end - start) + " seconds")
 
-        start = time.time()
         paths: list[str] = [Processor.extract_path_suffix(url) for url in documents_urls]
         results: list[dict] = await self.db.select(
             """SELECT d.id as doc_id, d.title_pt as title, d.abstract_pt as abstract, d.keywords_pt as keywords, 
                       d.author, d.url
                  FROM documents as d 
                 WHERE d.url_path_suffix = ANY(%s);""", var_args=(paths,))
-
-        end = time.time()
-        logger.info("RS database took: " + str(end - start) + " seconds")
 
         return results
 

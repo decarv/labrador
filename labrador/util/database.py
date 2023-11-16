@@ -123,6 +123,10 @@ class Database:
         return results
 
 class AsyncDatabase:
+    """
+    TODO: The way this database is used makes no sense as of now. It should either provide a connection to
+        the service that uses it and not keep the connection or work as a microservice.
+    """
     class AsyncDatabaseError(Exception):
         pass
 
@@ -208,6 +212,18 @@ class AsyncDatabase:
         async with aconn.cursor() as acur:
             try:
                 await acur.execute(insert_query, (query_id, doc_id, relevance,))
+                await aconn.commit()
+            except Exception as e:
+                raise e
+            finally:
+                await self.putconn(aconn)
+
+    async def query_times_write(self, speed, searcher, query_id) -> None:
+        insert_query = """INSERT INTO query_times (time, searcher, query_id) VALUES (%s, %s, %s);"""
+        aconn = await self.getconn()
+        async with aconn.cursor() as acur:
+            try:
+                await acur.execute(insert_query, (speed, searcher, query_id))
                 await aconn.commit()
             except Exception as e:
                 raise e

@@ -72,7 +72,6 @@ class DenseSearcher(Searcher):
             torch.cuda.empty_cache()
             vector: np.ndarray = self.encoder_model.encode(query, show_progress_bar=False, convert_to_tensor=True)
 
-        start = time.time()
         response_msg = await self.client.async_grpc_points.Search(
             grpc.SearchPoints(
                 collection_name=self.collection_name,
@@ -84,8 +83,6 @@ class DenseSearcher(Searcher):
         )
         response_dict = MessageToDict(response_msg)
         response_result = response_dict['result']
-        end = time.time()
-        logger.info(f"Retrieving took {end - start} seconds")
         hits = []
         inserted_hits = set()
         unique_property = 'doc_id'  # TODO: go back to using doc_id
@@ -139,7 +136,6 @@ class LocalNeuralSearcher(Searcher):
         hits: list[list[float, int]] = []  # min heap
         hits_dict: dict[int, list[int, float]] = {}
         for batch in corpus_embeddings_generator:
-            logger.info("Processing batch...")
             embeddings_list = [torch.tensor(r['embeddings']) for r in batch]
             corpus_embeddings: torch.tensor = torch.stack(embeddings_list)
             qe = query_embeddings.to(self.device)
