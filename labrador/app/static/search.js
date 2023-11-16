@@ -97,23 +97,23 @@ function processData(data) {
     <div id="labels">
         <div class="custom-radio">
             <input type="radio" id="label1-${item.doc_id}" name="label-${item.doc_id}" value="1">
-            <label for="label1-${item.doc_id}">1</label>
+            <label for="label1-${item.doc_id}">1 : Completamente irrelevante</label>
         </div>
         <div class="custom-radio">
             <input type="radio" id="label2-${item.doc_id}" name="label-${item.doc_id}" value="2">
-            <label for="label2-${item.doc_id}">2</label>
+            <label for="label2-${item.doc_id}">2 : Irrelevante</label>
         </div>
         <div class="custom-radio">
             <input type="radio" id="label3-${item.doc_id}" name="label-${item.doc_id}" value="3">
-            <label for="label3-${item.doc_id}">3</label>
+            <label for="label3-${item.doc_id}">3 : Neutro</label>
         </div>
         <div class="custom-radio">
             <input type="radio" id="label4-${item.doc_id}" name="label-${item.doc_id}" value="4">
-            <label for="label4-${item.doc_id}">4</label>
+            <label for="label4-${item.doc_id}">4 : Relevante</label>
         </div>
         <div class="custom-radio">
             <input type="radio" id="label5-${item.doc_id}" name="label-${item.doc_id}" value="5">
-            <label for="label5-${item.doc_id}">5</label>
+            <label for="label5-${item.doc_id}">5 : Altamente relevante</label>
         </div>
         <button id="annotate-button">Confirmar</button>
     </div>
