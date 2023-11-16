@@ -13,11 +13,13 @@ from sanic.request import Request
 from sanic import response
 from sanic_limiter import Limiter
 # import sanic_jinja2 as jinja2
+import pysolr
 
 from labrador import config
 from labrador.util import utils, database, log
 from labrador.dense.searcher import DenseSearcher
 from labrador.repository_searcher import RepositorySearcher
+from labrador.sparse.searcher import SparseSearcher
 
 from labrador.config import APP_DIR, QDRANT_HOST, QDRANT_GRPC_PORT, CERTS_DIR
 
@@ -54,8 +56,7 @@ async def init_resources(app, loop):
         token_type=app.ctx.token_type,
     )
     app.ctx.repository_searcher = RepositorySearcher(database=app.ctx.adb)
-    app.ctx.keyword_searcher = None
-    # app.ctx.keyword_searcher = KeywordSearcher()
+    app.ctx.sparse_retriever = SparseSearcher(pysolr.Solr(config.SOLR_URL))
 
     app.ctx.client_ip_table = {}
 
@@ -163,12 +164,12 @@ async def keyword_search(request: Request) -> HTTPResponse:
     response = await request.respond(content_type="application/json", status=200)
     try:
         query_id = await app.ctx.adb.queries_write(query)
-        hits = app.ctx.keyword_searcher.search(query)
+        hits = app.ctx.sparse_retriever.search(query)
         structured_hits = structure_hits(hits, app.ctx.shared_resources[uid]['sent_hits'])
         logger.info("Keyword Search Sending {} hits".format(len(structured_hits)))
         await response.send(json.dumps({"success": True, "queryId": query_id, "hits": structured_hits}) + "\n")
     except (TimeoutError, httpx.ReadTimeout, httpx.ConnectTimeout):
-        return response.json({"success": False, "error": "Repository search timed out"}, status=504)
+        return response.json({"success": False, "error": "Keyword search timed out"}, status=504)
 
 
 @app.get("/repository_search")
