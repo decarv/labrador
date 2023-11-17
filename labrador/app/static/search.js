@@ -75,7 +75,7 @@ async function receiveData(uid, query, responseInput) {
             }
         }
     }
-    await sleep(150)
+    await sleep(10)
 }
 
 function sleep(ms) {
