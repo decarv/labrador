@@ -18,7 +18,6 @@ import pysolr
 
 from labrador import config
 from labrador.util import utils, database, log
-from labrador.dense.searcher import DenseSearcher
 from labrador.repository_searcher import RepositorySearcher
 from labrador.sparse.searcher import SparseSearcher
 
@@ -46,19 +45,10 @@ async def init_resources(app, loop):
     # config
     app.ctx.adb = database.AsyncDatabase()
     app.ctx.adb.conn_pool_init()
-    app.ctx.model_name = list(config.MODELS.keys())[0]
-    app.ctx.token_type = "sentence_with_keywords"
-
-    app.ctx.collection_name = utils.collection_name(app.ctx.model_name, app.ctx.token_type)
-    app.ctx._index_client = qdrant_client.QdrantClient(QDRANT_HOST, port=QDRANT_GRPC_PORT)
-
     app.ctx.repository_searcher = RepositorySearcher(database=app.ctx.adb)
     app.ctx.sparse_retriever = SparseSearcher(client=pysolr.Solr(config.SOLR_URL))
-
     app.ctx.client_ip_table = {}
-
     app.ctx.shared_resources = {}
-
     logger.info("Resources initialized")
 
 
@@ -143,9 +133,10 @@ async def neural_search(request: Request) -> HTTPResponse:
 
 async def request_neural_search(query):
     async with httpx.AsyncClient() as client:
-        response = await client.get("0.0.0.0:8444", params={"query": query})
-        hits = response.json()["hits"]
-        return hits
+        response = await client.get("http://0.0.0.0:8444/", params={"query": query})
+        response_text = await response.aread()
+        response_json = json.loads(response_text)
+        return response_json['hits']
 
 
 @app.get("/keyword_search")

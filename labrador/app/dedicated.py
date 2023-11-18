@@ -1,7 +1,7 @@
 import os
 import qdrant_client
 import sanic
-
+import json
 from labrador import config
 from labrador.util import utils, log
 from labrador.dense.searcher import DenseSearcher
@@ -34,9 +34,15 @@ async def init_resources(app):
 @app.route("/")
 async def handle_neural_search(request: sanic.Request):
     response = await request.respond(content_type="application/json", status=200)
-    query = request.args.get("query", "").strip()
-    hits = await app.ctx.neural_searcher.search_async(query)
-    return response.json({"hits": hits})
+    try:
+        logger.info(f"Handling request: {request.args}")
+        query = request.args.get("query", "").strip()
+        logger.info(f"query:{query}")
+        hits = await app.ctx.neural_searcher.search_async(query)
+        return await response.send(json.dumps({"hits": hits}))
+    except Exception as e:
+        logger.exception(f"Failed to handle request: {e}")
+        return await response.send(json.dumps({"hits": []}))
 
 
 if __name__ == "__main__":
