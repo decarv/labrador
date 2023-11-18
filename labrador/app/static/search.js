@@ -46,6 +46,7 @@ async function receiveData(uid, query, responseInput) {
             if (!response.ok) {
                 throw new Error(`HTTP error! status: ${response.status}`);
             }
+            return response.json();
         })
         .then(data => {
             processData(data);
