@@ -34,9 +34,10 @@ async def init_resources(app):
 @app.route("/")
 async def handle_neural_search(request: sanic.Request):
     response = await request.respond(content_type="application/json", status=200)
-    hits = await app.ctx.neural_searcher.search_async(query=request.args.get("query"))
+    query = request.args.get("query", "").strip()
+    hits = await app.ctx.neural_searcher.search_async(query)
     return response.json({"hits": hits})
 
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=8444, workers=1)
+    app.run(host="0.0.0.0", port=8444, workers=1, auto_reload=True)
