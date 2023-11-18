@@ -35,13 +35,10 @@ async def init_resources(app):
 async def handle_neural_search(request: sanic.Request):
     response = await request.respond(content_type="application/json", status=200)
     try:
-        logger.info(f"Handling request: {request.args}")
         query = request.args.get("query", "").strip()
-        logger.info(f"query:{query}")
         hits = await app.ctx.neural_searcher.search_async(query)
         return await response.send(json.dumps({"hits": hits}))
     except Exception as e:
-        logger.exception(f"Failed to handle request: {e}")
         return await response.send(json.dumps({"hits": []}))
 
 
