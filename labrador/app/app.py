@@ -123,7 +123,6 @@ async def neural_search(request: Request) -> HTTPResponse:
             *(app.ctx.adb.queries_write(query),
               request_neural_search(query))
         )
-        ns_hits = ns_hits['hits']
         structured_ns_hits = structure_hits(ns_hits, app.ctx.shared_resources[uid]['sent_hits'])
         logger.info(f"Neural Search Sending {len(structured_ns_hits)} hits")
         await response.send(json.dumps({"success": True, "queryId": query_id, "hits": structured_ns_hits}) + "\n")
