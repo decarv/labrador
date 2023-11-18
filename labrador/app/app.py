@@ -51,11 +51,7 @@ async def init_resources(app, loop):
 
     app.ctx.collection_name = utils.collection_name(app.ctx.model_name, app.ctx.token_type)
     app.ctx._index_client = qdrant_client.QdrantClient(QDRANT_HOST, port=QDRANT_GRPC_PORT)
-    app.ctx.neural_searcher = DenseSearcher(
-        client=app.ctx._index_client,
-        model_name=app.ctx.model_name, collection_name=app.ctx.collection_name,
-        token_type=app.ctx.token_type,
-    )
+
     app.ctx.repository_searcher = RepositorySearcher(database=app.ctx.adb)
     app.ctx.sparse_retriever = SparseSearcher(client=pysolr.Solr(config.SOLR_URL))
 
@@ -135,13 +131,21 @@ async def neural_search(request: Request) -> HTTPResponse:
     try:
         query_id, ns_hits = await asyncio.gather(
             *(app.ctx.adb.queries_write(query),
-              app.ctx.neural_searcher.search_async(query))
+              request_neural_search(query))
         )
+        ns_hits = ns_hits['hits']
         structured_ns_hits = structure_hits(ns_hits, app.ctx.shared_resources[uid]['sent_hits'])
         logger.info(f"Neural Search Sending {len(structured_ns_hits)} hits")
         await response.send(json.dumps({"success": True, "queryId": query_id, "hits": structured_ns_hits}) + "\n")
     except (TimeoutError, httpx.ReadTimeout, httpx.ConnectTimeout) as e:
         return response.json({"success": False, "error": f"Neural search timed out: {e}"}, status=504)
+
+
+async def request_neural_search(query):
+    async with httpx.AsyncClient() as client:
+        response = await client.get("0.0.0.0:8444", params={"query": query})
+        hits = response.json()["hits"]
+        return hits
 
 
 @app.get("/keyword_search")
@@ -312,4 +316,4 @@ def shuffle_hits(hits: list[dict], inserted: set[int]) -> list[dict]:
 
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=8443, ssl=CERTS_DIR, debug=True, auto_reload=True, workers=1)
+    app.run(host="0.0.0.0", port=8443, ssl=CERTS_DIR, debug=True, auto_reload=True, workers=3)
