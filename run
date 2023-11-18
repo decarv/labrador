@@ -1,29 +1,25 @@
 #!/bin/bash
 
-if [ "$#" -ne 1 ]; then
-    echo "Usage: ./run.sh <file_name>"
-    exit 1
-fi
+# Start a new tmux session in detached mode
+tmux new-session -d
 
-read -p "Executing file ${1}. Type Y to continue... " user_input
-if [ "$user_input" != "Y" ]; then
-    echo "Exiting..."
-    exit 1
-fi
-
-source .venv/bin/activate
-
-tmux kill-session -t labrador
-tmux new-session -d -s labrador
-
+# Split the window vertically into two panes
 tmux split-window -h
-tmux send-keys "python3 ${1}" C-m
-tmux select-pane -L
+
+# Split the left pane horizontally into three
+tmux select-pane -t 0
+tmux send-keys 'python3 -m labrador.app.app' C-m
 tmux split-window -v
+tmux select-pane -t 0
+tmux send-keys 'python3 -m labrador.app.dedicated' C-m
+tmux split-window -v
+
+# Split the right pane horizontally into two and run nvtop and htop
+tmux select-pane -t 3
 tmux send-keys 'htop' C-m
-tmux select-pane -D
+tmux split-window -v
 tmux send-keys 'nvtop' C-m
 
-
 # Attach to the tmux session
-tmux attach -t labrador
+tmux attach-session
+
