@@ -40,43 +40,53 @@ async function makeRequests(uid, query) {
     }
 }
 
-function timeout(ms, error) {
-    return new Promise((_, reject) => setTimeout(() => reject(new Error(error)), ms));
-}
-
 async function receiveData(uid, query, responseInput) {
-    const TIMEOUT_MS = 30000; // 30 seconds
-    const responsePromise = fetch(responseInput).then(response => response.body.getReader());
-    const reader = await Promise.race([responsePromise, timeout(TIMEOUT_MS, "Request timed out")]);
-    let consumedData = "";
-    let i = 0;
+    fetch(responseInput)
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            return processData(response.json());
 
-    while (true) {
-        const { value, done } = await reader.read();
-        const chunk = new TextDecoder().decode(value);
-        consumedData += chunk;
-        let j = consumedData.indexOf('\n', i);
-        if (j === -1) {
-            continue;
-        }
-        let nextJsonString= consumedData.slice(i, j);
-        i = j + 1;
-        try {
-            const data = JSON.parse(nextJsonString);
-            if (data.success) {
-                return processData(data);
-            } else {
-                console.error("Error in data:", data);
-                break;
-            }
-        } catch (e) {
-            if (consumedData === "") {
-                throw e;
-            }
-        }
-    }
-    await sleep(100)
+        })
+        .then(data => {
+            processData(data);
+        })
+        .catch(error => {
+            console.error("Error in response:", error);
+        });
 }
+
+// DataStreaming
+//while (true) {
+//         const { value, done } = await reader.read();
+//         const chunk = new TextDecoder().decode(value);
+//         consumedData += chunk;
+//         let j = consumedData.indexOf('\n', i);
+//         if (j === -1) {
+//             continue;
+//         }
+//         let nextJsonString= consumedData.slice(i, j);
+//         i = j + 1;
+//         try {
+//             const data = JSON.parse(nextJsonString);
+//             if (data.success) {
+//                 return processData(data);
+//             } else {
+//                 console.error("Error in data:", data);
+//                 break;
+//             }
+//         } catch (e) {
+//             if (consumedData === "") {
+//                 throw e;
+//             }
+//         }
+//     }
+//     await sleep(100)
+// const reader = await Promise.race([responsePromise, timeout(TIMEOUT_MS, "Request timed out")]);
+// let consumedData = "";
+// let i = 0;
+
 
 function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
