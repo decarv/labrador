@@ -212,8 +212,7 @@ class Evaluator:
 
     @staticmethod
     def _relevance_measurements(hits: dict[int, dict], qrels: dict[int, int]):
-        ideal_hits = dict(sorted(qrels.items(), key=lambda x: x[1], reverse=True))
-
+        assert len(hits) == 10
         dcg: float = 0
         precision: float = 0
         misses: int = 0
@@ -228,8 +227,10 @@ class Evaluator:
             dcg += (2 ** relevance - 1) / math.log2(i + 2)
 
         idcg = 0
-        for i, hit in enumerate(ideal_hits):
-            idcg += (2 ** ideal_hits[hit] - 1) / math.log2(i + 2)
+        ideal_hits = dict(sorted(qrels.items(), key=lambda x: x[1], reverse=True))
+        keys = list(ideal_hits.keys())[:10]
+        for i, doc_id in enumerate(keys):
+            idcg += (2 ** ideal_hits[doc_id] - 1) / math.log2(i + 2)
 
         return precision / len(hits), dcg / idcg, misses
 
