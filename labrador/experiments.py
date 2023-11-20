@@ -67,7 +67,7 @@ ANSWERS_IDS = [
 
 # Experiment functions
 
-def experiments_path(experiment_name: str, save_dir: str = config.RESULTS_DIR):
+def experiments_path(experiment_name: str, save_dir: str = config.REPORTS_DIR):
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)
 

@@ -3,6 +3,7 @@ import json
 import os
 from typing import Any
 import gc
+import asyncio
 
 import numpy as np
 import qdrant_client
@@ -34,19 +35,51 @@ class DenseSearcher(Searcher):
         self.collection_name = utils.collection_name(self.model_name, self.token_type)
 
     def _retrieve(self, query: str, top_k: int) -> list[dict]:
-        vector: np.ndarray = self.encoder_model.encode(query, show_progress_bar=False, convert_to_tensor=True)
-        hits: list[ScoredPoint] = self.client.search(
-            collection_name=self.collection_name,
-            search_params=models.SearchParams(
-                hnsw_ef=128,
-                exact=False
-            ),
-            query_vector=vector,
-            limit=top_k,
-            with_payload=True
+        limit: int = top_k * 10
+        try:
+            vector: np.ndarray = self.encoder_model.encode(query, show_progress_bar=False, convert_to_tensor=True)
+        except OutOfMemoryError:
+            gc.collect()
+            torch.cuda.empty_cache()
+            vector: np.ndarray = self.encoder_model.encode(query, show_progress_bar=False, convert_to_tensor=True)
+
+        response_msg = self.client.grpc_points.Search(
+            grpc.SearchPoints(
+                collection_name=self.collection_name,
+                vector=vector,
+                limit=limit,
+                with_payload=grpc.WithPayloadSelector(enable=True),
+                with_vectors=grpc.WithVectorsSelector(enable=False),
+            )
         )
-        results = [hit.model_dump()['payload'] for hit in hits]
-        return results
+        return self._extract_hits_from_message(response_msg, top_k)
+
+
+        # limit: int = top_k * 10  # TODO: is there a better fix?
+
+#         vector: np.ndarray = self.encoder_model.encode(query, show_progress_bar=False, convert_to_tensor=True)
+#         response_msg = self.client.grpc_points.Search(
+#             grpc.SearchPoints(
+#                 collection_name=self.collection_name,
+#                 vector=vector,
+#                 limit=limit,
+# #                 with_payload=grpc.WithPayloadSelector(enable=True),
+# #                 with_vectors=grpc.WithVectorsSelector(enable=False),
+#             )
+#         )
+# #         response_dict = MessageToDict(response_msg)
+# #         response_result = response_dict['result']
+#         hits = []
+#         inserted_hits = set()
+#         unique_property = 'doc_id'
+#         for hit in response_result:
+#             hit_dict = self.protobuf_to_dict(hit)
+#             if hit_dict[unique_property] not in inserted_hits:
+#                 inserted_hits.add(hit_dict[unique_property])
+#                 hits.append(hit_dict)
+#             if len(hits) == top_k:
+#                 break
+#         return hits
 
     def _filter(self, hits, _filters=None):
         return hits
@@ -64,7 +97,6 @@ class DenseSearcher(Searcher):
         """
 
         limit: int = top_k * 10
-        import time
         try:
             vector: np.ndarray = self.encoder_model.encode(query, show_progress_bar=False, convert_to_tensor=True)
         except OutOfMemoryError:
@@ -81,19 +113,7 @@ class DenseSearcher(Searcher):
                 with_vectors=grpc.WithVectorsSelector(enable=False),
             )
         )
-        response_dict = MessageToDict(response_msg)
-        response_result = response_dict['result']
-        hits = []
-        inserted_hits = set()
-        unique_property = 'doc_id'  # TODO: go back to using doc_id
-        for hit in response_result:
-            hit_dict = self.protobuf_to_dict(hit)
-            if hit_dict[unique_property] not in inserted_hits:
-                inserted_hits.add(hit_dict[unique_property])
-                hits.append(hit_dict)
-            if len(hits) == top_k:
-                break
-        return hits
+        return self._extract_hits_from_message(response_msg, top_k)
 
     @staticmethod
     def protobuf_to_dict(protobuf):
@@ -107,6 +127,24 @@ class DenseSearcher(Searcher):
             else:
                 raise ValueError(f"Unknown value format: {value_fmt}")
         return dictionary
+
+    def _extract_hits_from_message(self, response_msg, top_k):
+        response_dict = MessageToDict(response_msg)
+        if 'result' not in response_dict:
+                    return []
+        response_result = response_dict['result']
+        hits = []
+        inserted_hits = set()
+        unique_property = 'doc_id'
+        for hit in response_result:
+            hit_dict = self.protobuf_to_dict(hit)
+            if hit_dict[unique_property] not in inserted_hits:
+                inserted_hits.add(hit_dict[unique_property])
+                hits.append(hit_dict)
+                if len(hits) == top_k:
+                    break
+
+        return hits
 
     async def _rank_async(self, hits):
         return hits
@@ -197,7 +235,7 @@ class LocalNeuralSearcher(Searcher):
     def save(self, hits: list[dict[str]]):
         normalized_model_name = self.model_name.replace("/", "-")
         with open(os.path.join(
-                config.RESULTS_DIR,
+                config.REPORTS_DIR,
                 f"{__class__.__name__}_{normalized_model_name}_{self.token_type}_{self.language}.json"), "a") as f:
             f.write(json.dumps(hits))
 

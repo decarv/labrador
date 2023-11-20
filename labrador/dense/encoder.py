@@ -16,13 +16,10 @@ See the License for the specific language governing permissions and
 limitations under the License.
 
 """
-import time
 from multiprocessing import Pool
 import torch
-from qdrant_client.models import PointStruct
 from sentence_transformers import SentenceTransformer
 from typing import Iterator
-from psycopg2.extras import RealDictRow
 from torch.cuda import OutOfMemoryError
 import nvidia_smi
 
@@ -30,6 +27,7 @@ from labrador import config
 from labrador.dense.tokenizer import Tokenizer
 from labrador.util.database import Database
 from labrador.util.log import configure_logger
+from labrador import util
 
 logger = configure_logger(__file__)
 
@@ -37,10 +35,11 @@ logger = configure_logger(__file__)
 class Encoder:
     """
     TODO: Ideally, encoder should not have a token_type. It should fetch from the database and encode all tokens.
-        But for now, it is only encoding sentence_with_keywords tokens.
     """
-    def __init__(self, database: Database, model_name: str, token_type: str = 'sentence_with_keywords'):
+    def __init__(self, database: Database, model_name: str, token_type: str, workers: int = 2):
         self._database = database
+        self._workers = workers
+
         self.model_name = model_name
         self.token_type = token_type
 
@@ -56,17 +55,18 @@ class Encoder:
 
         tokens_batches: Iterator[list] = self._database.batch_generator(
             """SELECT t.id, t.token, t.token_type
-               FROM tokens AS t
-               WHERE t.id not in (SELECT token_id FROM embeddings WHERE model_name = %s)
-               AND t.token_type = %s
-               AND t.id BETWEEN %s AND %s
-            """,
+                       FROM tokens AS t
+                       LEFT JOIN embeddings AS e ON t.id = e.token_id AND e.model_name = %s
+                      WHERE e.token_id IS NULL
+                        AND t.token_type = %s 
+                        AND t.id BETWEEN %s AND %s
+                      ORDER BY t.id;""",
             (self.model_name, self.token_type, *id_range)
         )
         self.encode(tokens_batches)
 
     def encode(self, batches: Iterator[list]):
-        for batch in batches:
+        for batch_i, batch in enumerate(batches):
 
             # minibatch_size is reduced by half until reaching 0, or encoding of whole batch is successful,
             # if the encoding process fails due to OutOfMemoryError.
@@ -155,41 +155,29 @@ class Encoder:
         free_mem_mb = info.free
         return free_mem_mb
 
+    # TODO: this does not work because you cannot fork SentenceTransformers
+    def run_parallel(self):
+        workers, id_ranges = self._distribute_workload()
+        with Pool(processes=self._workers) as pool:
+            pool.map(self.run, id_ranges)
 
-def get_id_ranges(db, num_workers, model_name, token_type):
-    ids = [row['id'] for row in db.select(
-        f"""SELECT t.id 
-                  FROM tokens AS t
-                  WHERE t.id not in (SELECT token_id FROM embeddings WHERE model_name = %s) 
-                  AND token_type = %s ORDER BY id;""", (model_name, token_type,))]
+    def _distribute_workload(self):
+        ids: list[int] = [row['id'] for row in self._database.select(
+            """SELECT t.id 
+                       FROM tokens AS t
+                       LEFT JOIN embeddings AS e ON t.id = e.token_id AND e.model_name = %s
+                      WHERE e.token_id IS NULL
+                        AND t.token_type = %s 
+                      ORDER BY t.id;""",
+            (self.model_name, self.token_type,))]
 
-    if not ids:
-        logger.info(f"No tokens found for token_type {token_type}.")
-        return []
-
-    num_workers = min(len(ids), num_workers)
-
-    id_ranges = []
-    range_length = len(ids) // num_workers
-    first: int = 0
-    for i in range(num_workers):
-        last = range_length * (i + 1)
-        if last >= len(ids):
-            last = -1
-        id_ranges.append((ids[first], ids[last]))
-        first = last + 1
-    return id_ranges
+        return util.distribute_workload(ids, self._workers)
 
 
 if __name__ == "__main__":
     database: Database = Database()
-    num_encoder_workers: int = 2
     while True:
         for model_name in config.MODELS.keys():
             for token_type in Tokenizer.token_types():
-                encoder: Encoder = Encoder(database, model_name)
-                id_ranges = get_id_ranges(database, num_encoder_workers, model_name, token_type)
-                if not id_ranges:
-                    continue
-                with Pool(processes=num_encoder_workers) as pool:
-                    pool.map(encoder.run, id_ranges)
+                encoder: Encoder = Encoder(database, model_name, token_type, workers=2)
+                encoder.run()

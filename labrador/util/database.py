@@ -48,8 +48,13 @@ class Database:
         self._conn_pool: Optional[psycopg_pool.ConnectionPool] = None
         self.conn_pool_init()
 
-    def conn_pool_init(self, minconn: int = 1, maxconn: int = 30):
+    def conn_pool_init(self, minconn: int = 1, maxconn: int = 10):
         self._conn_pool = psycopg_pool.ConnectionPool(conninfo=self._conninfo, min_size=minconn, max_size=maxconn,)
+
+    def conn_pool_close(self):
+        if self._conn_pool is None:
+            raise Database.DatabaseError("Connection pool is not initialized.")
+        self._conn_pool.close()
 
     def getconn(self):
         if self._conn_pool is None:

@@ -2,26 +2,24 @@ import json
 from typing import Optional
 
 import os
-import time
 import asyncio
 import random
 
 import httpx
-import qdrant_client
+import pysolr
 import sanic
 from sanic.response import HTTPResponse
 from sanic.request import Request
 from sanic import response
 from sanic_limiter import Limiter
-# import sanic_jinja2 as jinja2
-import pysolr
+
 
 from labrador import config
-from labrador.util import utils, database, log
-from labrador.repository_searcher import RepositorySearcher
+from labrador.util import database, log
+from labrador.repo.searcher import RepositorySearcher
 from labrador.sparse.searcher import SparseSearcher
 
-from labrador.config import APP_DIR, QDRANT_HOST, QDRANT_GRPC_PORT, CERTS_DIR
+from labrador.config import APP_DIR, CERTS_DIR
 
 STATIC_DIR: str = os.path.join(APP_DIR, "static")
 TEMPLATE_DIR: str = os.path.join(APP_DIR, "templates")

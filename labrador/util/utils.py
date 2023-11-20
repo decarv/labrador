@@ -203,3 +203,23 @@ def flatten_nested(ds):
 
 def collection_name(model_name, token_type):
     return f"{model_name.replace('-', '').replace('/', '')}{token_type.replace('_', '')}"
+
+
+def distribute_workload(ids, workers) -> tuple[int, list[tuple[int, int]]]:
+    assert all(ids[i] <= ids[i+1] for i in range(len(ids)-1))
+
+    if len(ids) == 0:
+        return 0, []  # prevent division by zero
+
+    workers: int = min(len(ids), workers)
+    first_ind: int = 0
+    range_len: int = (len(ids) // workers) + 1
+    id_ranges: list[tuple[int, int]] = []
+    for i in range(workers):
+        last_ind: int = range_len * (i + 1)
+        if last_ind >= len(ids):
+            last_ind = -1
+        id_ranges.append((ids[first_ind], ids[last_ind]))
+        first_ind = last_ind + 1
+
+    return workers, id_ranges

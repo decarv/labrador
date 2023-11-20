@@ -19,8 +19,14 @@ limitations under the License.
 import enum
 import hashlib
 import re
+from multiprocessing import Pool
 from typing import Optional, Callable, Iterator
 
+import psycopg
+from psycopg.rows import dict_row
+
+from labrador import config
+from labrador import util
 from labrador.util.log import configure_logger, logger
 from labrador.util.database import Database
 from labrador.dense.processor import Processor
@@ -41,49 +47,63 @@ class Tokenizer:
     class TokenizerError(Exception):
         pass
 
-    def __init__(self, database: Database, language: str = "pt", token_type="sentence_with_keywords"):
+    def __init__(self, database: Database, language: str = "pt", workers: int = 1):
         self._database: Database = database
-        self.token_type = token_type
+        self._workers: int = workers
         self.language: str = language
 
-    def loop(self, id_range: tuple[int, int] = None):
+    def run(self):
+        for token_type in ['two_sentences_with_keywords']:
+            self._loop(token_type)
+            # with psycopg.connect(config.POSTGRESQL_URL) as conn:
+            #     with conn.cursor(row_factory=dict_row) as cur:
+            #         ids = [row['id'] for row in cur.execute(
+            #             """SELECT d.id
+            #                FROM documents AS d
+            #                        LEFT JOIN tokens AS t ON d.id = t.doc_id AND t.token_type = %s
+            #                       WHERE t.id IS NULL
+            #                       ORDER BY d.id;""",
+            #             (token_type,))]
+            #         workers, id_ranges = util.distribute_workload(ids, self._workers)
+            #         params = [(token_type, id_ranges[i]) for i in range(len(id_ranges))]
+
+            # with Pool(processes=self._workers) as pool:
+            #     pool.map(self._loop, *params)
+
+    def _loop(self, token_type, id_range: tuple[int, int] = None):
         """
         This function is responsible for the tokenization pipeline. It fetches documents from the database and
         tokenizes them using the Tokenizer class. The tokenization process is done in a loop, so that it can be
         repeated indefinitely.
         """
-
         if id_range is None:
             id_range = (1, self._database.select("""SELECT id FROM documents ORDER BY id DESC LIMIT 1;""")[0]['id'])
 
-        while True:
-            batches: Iterator[list] = self._database.batch_generator(
-                """
-                SELECT d.id as doc_id, title_pt as title, abstract_pt as abstract, keywords_pt as keywords
-                FROM documents as d
-                WHERE d.id BETWEEN %s AND %s
-                AND d.id NOT IN (SELECT DISTINCT d.id as doc_id
-                    FROM documents as d
-                    JOIN tokens AS t ON d.id = t.doc_id
-                    WHERE token_type = %s);
-                """,
-                (*id_range, self.token_type,),
-                batch_size=128
-            )
+        # TODO: implement loop
+        # while True:
+        batches: Iterator[list] = self._database.batch_generator(
+            """SELECT title_pt as title, abstract_pt as abstract, keywords_pt as keywords, d.id as doc_id 
+            FROM documents AS d
+                   LEFT JOIN tokens AS t ON d.id = t.doc_id AND t.token_type = %s
+                   AND t.id IS NULL
+                  ORDER BY d.id;""",
+            (token_type, ),
+            batch_size=128
+        )
 
-            for batch in batches:
-                records = self._tokenize_batch(self.token_type, batch)
-                try:
-                    self._database.insert_many(
-                            """INSERT INTO tokens (doc_id, token, token_type, language, unique_hash)
-                               VALUES (%s, %s, %s, %s, %s)
-                               ON CONFLICT (unique_hash) DO NOTHING;""",
-                            records
-                    )
-                except Database.DatabaseError as e:
-                    logger.error(f"Error inserting records into database: {e}")
+        for batch in batches:
+            records = self._tokenize_batch(token_type, batch)
+            try:
+                self._database.insert_many(
+                        """INSERT INTO tokens (doc_id, token, token_type, language, unique_hash)
+                           VALUES (%s, %s, %s, %s, %s)
+                           ON CONFLICT (unique_hash) DO NOTHING;""",
+                        records
+                )
+            except Database.DatabaseError as e:
+                logger.error(f"Error inserting records into database: {e}")
 
-            time.sleep(3600)
+        # time.sleep(3600)
 
     def _tokenize_batch(self, token_type: str, batch: list) -> list[tuple[int, str, str, str, str]]:
         tokenizer_function: Callable = getattr(self, f"_generate_{token_type}_tokens")
@@ -159,6 +179,11 @@ class Tokenizer:
             sentence_tokens[i] += f". {document['keywords']}"
         assert len(sentence_tokens) > 0
         return sentence_tokens
+
+    # def _generate_two_sentences_with_keywords_tokens(self, document: dict) -> list[str]:
+    #     swk_tokens: list[str] = self._generate_sentence_with_keywords_tokens(document)
+    #     tswk_tokens: list[str] = [". ".join(swk_tokens[i:i+2]) for i in range(len(swk_tokens) - 1)]
+    #     return tswk_tokens
 
     # def _generate_8gram_tokens(self, instance: RealDictRow) -> list[str]:
     #     n = 8
@@ -247,3 +272,10 @@ class Tokenizer:
         return unmasked_sentences
 
 
+
+
+if __name__ == "__main__":
+    db = Database()
+    workers: int = 3
+    tokenizer: Tokenizer = Tokenizer(db, workers)
+    tokenizer.run()
