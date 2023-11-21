@@ -212,7 +212,13 @@ class Evaluator:
 
     @staticmethod
     def _relevance_measurements(hits: dict[int, dict], qrels: dict[int, int]):
-        assert len(hits) == 10
+        if len(hits) < 10:
+            logger.warning("Less than 10 hits returned.")
+            fake_doc_id = -1
+            while len(hits) < 10:
+                hits[fake_doc_id] = {'doc_id': fake_doc_id}
+                fake_doc_id -= 1
+
         dcg: float = 0
         precision: float = 0
         misses: int = 0
@@ -282,20 +288,20 @@ if __name__ == "__main__":
     language = "pt"
     top_k = 10
 
-    for token_type in ["sentence_with_keywords"]:  # TODO: Tokenizer.token_types():
-        for model_name in config.MODELS:
-            ds = DenseSearcher(
-                client=qdrant_client.QdrantClient(url=config.QDRANT_HOST, port=config.QDRANT_GRPC_PORT),
-                model_name=model_name,
-                token_type=token_type,
-                language=language,
-            )
-            evaluator.evaluate(ds, top_k)
+    # for token_type in ["sentence_with_keywords"]:  # TODO: Tokenizer.token_types():
+    #     for model_name in config.MODELS:
+    #         ds = DenseSearcher(
+    #             client=qdrant_client.QdrantClient(url=config.QDRANT_HOST, port=config.QDRANT_GRPC_PORT),
+    #             model_name=model_name,
+    #             token_type=token_type,
+    #             language=language,
+    #         )
+    #         evaluator.evaluate(ds, top_k)
+    #
+    # ss = SparseSearcher(client=pysolr.Solr(config.SOLR_URL), top_k=top_k)
+    # evaluator.evaluate(ss, top_k)
 
-    ss = SparseSearcher(client=pysolr.Solr(config.SOLR_URL), top_k=top_k)
-    evaluator.evaluate(ss, top_k)
-
-    rs = RepositorySearcher(top_k=top_k)
+    rs = RepositorySearcher(database=db, top_k=top_k)
     evaluator.evaluate(rs, top_k)
     #
     # evaluator.create_reports()
