@@ -137,14 +137,12 @@ class Evaluator:
     def create_reports(self):
         evaluations = self._database.select(
             """SELECT searcher, model_name, token_type, AVG(ndcg) as avg_ndcg, AVG(mean_time) avg_mean_time,
-                AVG(stddev_time) avg_stddev_time, AVG(precision) as avg_precision, AVG(misses) as avg_misses
+                AVG(stddev_time) avg_stddev_time, AVG(precision) as avg_precision, SUM(misses) as total_misses
                      FROM evaluations
-                    GROUP BY searcher, model_name, token_type, date
-                    ORDER BY date DESC;"""
+                    GROUP BY searcher, model_name, token_type;"""
         )
-        latest_eval = evaluations[0]
 
-        df = pd.DataFrame(latest_eval)
+        df = pd.DataFrame(evaluations)
 
         self._create_table_report(df)
         self._plot_performance_heatmap(df)
@@ -253,7 +251,7 @@ class Evaluator:
             times.append(end - start)
         return np.mean(times), np.std(times)
 
-    def _is_evaluated(self, searcher, query_id, top_k, qrels_count) -> bool:
+    def _is_evaluated(self, searcher, query_id, top_k) -> bool:
         query_result = self._database.select(
             """SELECT query_id, searcher, model_name, token_type, language, top_k, qrels_count
                        FROM evaluations 
@@ -262,11 +260,9 @@ class Evaluator:
                         AND (model_name = %s OR model_name IS NULL)
                         AND (token_type = %s OR token_type IS NULL)
                         AND (language = %s OR language IS NULL)
-                        AND top_k = %s
-                        AND qrels_count = %s
-                        ORDER BY date DESC;""",
+                        AND top_k = %s;""",
             (query_id, searcher.__class__.__name__, searcher.model_name,
-             searcher.token_type, searcher.language, top_k, qrels_count)
+             searcher.token_type, searcher.language, top_k)
         )
         if len(query_result) == 0:
             return False
@@ -301,7 +297,7 @@ if __name__ == "__main__":
     # ss = SparseSearcher(client=pysolr.Solr(config.SOLR_URL), top_k=top_k)
     # evaluator.evaluate(ss, top_k)
 
-    rs = RepositorySearcher(database=db, top_k=top_k)
-    evaluator.evaluate(rs, top_k)
-    #
-    # evaluator.create_reports()
+    # rs = RepositorySearcher(database=db, top_k=top_k)
+    # evaluator.evaluate(rs, top_k)
+    # #
+    evaluator.create_reports()
