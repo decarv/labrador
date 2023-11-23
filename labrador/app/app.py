@@ -13,7 +13,6 @@ from sanic.request import Request
 from sanic import response
 from sanic_limiter import Limiter
 
-
 from labrador import config
 from labrador.util import database, log
 from labrador.repo.searcher import RepositorySearcher
@@ -35,7 +34,6 @@ os.environ["SANIC_RESPONSE_TIMEOUT"] = "30"
 
 app.static("/static", STATIC_DIR)
 limiter = Limiter(app)
-# jinja = jinja2.SanicJinja2(app, loader=jinja2.FileSystemLoader(TEMPLATE_DIR))
 
 
 @app.before_server_start
@@ -59,43 +57,46 @@ async def start_periodic_tasks(app, loop):
 async def index(request: Request) -> HTTPResponse:
     return await response.file(os.path.join(STATIC_DIR, "index.html"))
 
-@app.get("/search")
-@limiter.limit("15 per minute")
-async def search(request: Request) -> HTTPResponse:
-    if disallow_ip(request.ip):
-        return sanic.response.json({"success": False, "error": "Too many requests from this IP. Chill..."}, status=429)
-    update_client_ip_table(app, request.ip)
 
-    query = request.args.get("query", "").strip()
-    if query == "":
-        return sanic.response.json({"success": False, "error": "No query provided"}, status=400)
-
-    response = await request.respond(content_type="application/json", status=200)
-    query_id = 0
-    sent_hits_ids: set[int] = set()
-    try:
-        gather_results = await asyncio.gather(
-            *(app.ctx.adb.queries_write(query),
-              app.ctx.neural_searcher.search_async(query))
-        )
-        query_id, ns_hits = gather_results
-        structured_ns_hits = structure_hits(ns_hits, sent_hits_ids)
-
-        await response.send(json.dumps({"success": True, "queryId": query_id, "hits": structured_ns_hits, "done": False}) + "\n")
-
-        response = await request.respond(content_type="application/json", status=200)
-        rs_hits = await app.ctx.repository_searcher.search_async(query)
-
-        structured_rs_hits = structure_hits(rs_hits, sent_hits_ids)
-
-        await response.send(json.dumps({"success": True, "queryId": query_id, "hits": structured_rs_hits, "done": False}) + "\n")
-
-    except (TimeoutError, httpx.ReadTimeout, httpx.ConnectTimeout) as e:
-        return sanic.response.json({"success": False, "error": f"Search timed out: {e}"}, status=504)
-
-    finally:
-        response = await request.respond(content_type="application/json", status=200)
-        await response.send(json.dumps({"success": True, "queryId": query_id, "hits": [], "done": True}) + "\n")
+# @app.get("/search")
+# @limiter.limit("15 per minute")
+# async def search(request: Request) -> HTTPResponse:
+#     if disallow_ip(request.ip):
+#         return sanic.response.json({"success": False, "error": "Too many requests from this IP. Chill..."}, status=429)
+#     update_client_ip_table(app, request.ip)
+#
+#     query = request.args.get("query", "").strip()
+#     if query == "":
+#         return sanic.response.json({"success": False, "error": "No query provided"}, status=400)
+#
+#     response = await request.respond(content_type="application/json", status=200)
+#     query_id = 0
+#     sent_hits_ids: set[int] = set()
+#     try:
+#         gather_results = await asyncio.gather(
+#             *(app.ctx.adb.queries_write(query),
+#               app.ctx.neural_searcher.search_async(query))
+#         )
+#         query_id, hits = gather_results
+#         structured_hits = structure_hits(hits, sent_hits_ids)
+#
+#         for hit in structured_hits:
+#             hit['query_id'] = hit
+#         await response.send(json.dumps({"success": True, "hits": structured_hits, "done": False}) + "\n")
+#
+#         response = await request.respond(content_type="application/json", status=200)
+#         hits = await app.ctx.repository_searcher.search_async(query)
+#
+#         structured_rs_hits = structure_hits(hits, sent_hits_ids)
+#
+#         await response.send(json.dumps({"success": True, "queryId": query_id, "hits": structured_rs_hits, "done": False}) + "\n")
+#
+#     except (TimeoutError, httpx.ReadTimeout, httpx.ConnectTimeout) as e:
+#         return sanic.response.json({"success": False, "error": f"Search timed out: {e}"}, status=504)
+#
+#     finally:
+#         response = await request.respond(content_type="application/json", status=200)
+#         await response.send(json.dumps({"success": True, "queryId": query_id, "hits": [], "done": True}) + "\n")
 
 
 @app.get("/neural_search")
@@ -117,13 +118,23 @@ async def neural_search(request: Request) -> HTTPResponse:
     query_id = 0
     response = await request.respond(content_type="application/json", status=200)
     try:
-        query_id, ns_hits = await asyncio.gather(
+        query_id, hits = await asyncio.gather(
             *(app.ctx.adb.queries_write(query),
               request_neural_search(query))
         )
-        structured_ns_hits = structure_hits(ns_hits, app.ctx.shared_resources[uid]['sent_hits'])
-        logger.info(f"Neural Search Sending {len(structured_ns_hits)} hits")
-        await response.send(json.dumps({"success": True, "queryId": query_id, "hits": structured_ns_hits}) + "\n")
+
+        params = [(query_id, hit['doc_id'], 0) for hit in hits]
+        await app.ctx.adb.insert_many(
+            """INSERT INTO qrels (query_id, doc_id, relevance) VALUES (%s, %s, %s) ON CONFLICT DO NOTHING""",
+            params
+        )
+
+        structured_hits = structure_hits(hits, app.ctx.shared_resources[uid]['sent_hits'])
+        for hit in structured_hits:
+            hit['query_id'] = query_id
+
+        await response.send(json.dumps({"success": True, "hits": structured_hits}) + "\n")
+
     except (TimeoutError, httpx.ReadTimeout, httpx.ConnectTimeout) as e:
         return response.json({"success": False, "error": f"Neural search timed out: {e}"}, status=504)
 
@@ -158,9 +169,18 @@ async def keyword_search(request: Request) -> HTTPResponse:
     try:
         query_id = await app.ctx.adb.queries_write(query)
         hits = app.ctx.sparse_retriever.search(query, top_k=10)
+
+        params = [(query_id, hit['doc_id'], 0) for hit in hits]
+        await app.ctx.adb.insert_many(
+            """INSERT INTO qrels (query_id, doc_id, relevance) VALUES (%s, %s, %s) ON CONFLICT DO NOTHING""",
+            params
+        )
+
         structured_hits = structure_hits(hits, app.ctx.shared_resources[uid]['sent_hits'])
-        logger.info("Keyword Search Sending {} hits".format(len(structured_hits)))
-        await response.send(json.dumps({"success": True, "queryId": query_id, "hits": structured_hits}) + "\n")
+        for hit in structured_hits:
+            hit['query_id'] = query_id
+        await response.send(json.dumps({"success": True, "hits": structured_hits}) + "\n")
+
     except (TimeoutError, httpx.ReadTimeout, httpx.ConnectTimeout):
         return response.json({"success": False, "error": "Keyword search timed out"}, status=504)
 
@@ -185,15 +205,51 @@ async def repository_search(request: Request) -> HTTPResponse:
     query_id = 0
     response = await request.respond(content_type="application/json", status=200)
     try:
-        query_id, rs_hits = await asyncio.gather(
+        query_id, hits = await asyncio.gather(
             *(app.ctx.adb.queries_write(query),
               app.ctx.repository_searcher.search_async(query))
         )
-        structured_rs_hits = structure_hits(rs_hits, app.ctx.shared_resources[uid]['sent_hits'])
-        logger.info(f"Repository Search Sending {len(structured_rs_hits)} hits")
-        await response.send(json.dumps({"success": True, "queryId": query_id, "hits": structured_rs_hits}) + "\n")
+
+        params = [(query_id, hit['doc_id'], 0) for hit in hits]
+        await app.ctx.adb.insert_many(
+            """INSERT INTO qrels (query_id, doc_id, relevance) VALUES (%s, %s, %s) ON CONFLICT DO NOTHING""",
+            params
+        )
+
+        structured_hits = structure_hits(hits, app.ctx.shared_resources[uid]['sent_hits'])
+        for hit in structured_hits:
+            hit['query_id'] = query_id
+        await response.send(json.dumps({"success": True, "hits": structured_hits}) + "\n")
     except (TimeoutError, httpx.ReadTimeout, httpx.ConnectTimeout):
         return response.json({"success": False, "error": "Repository search timed out"}, status=504)
+
+
+@app.get("/missing")
+@limiter.limit("40 per minute")
+async def return_missing(request: Request) -> HTTPResponse:
+    if disallow_ip(request.ip):
+        return sanic.response.json({"error": "Too many requests from this IP. Chill..."}, status=429)
+    update_client_ip_table(app, request.ip)
+    uid = request.args.get("uid", "").strip()
+    if uid == "":
+        return sanic.response.json({"success": False, "error": "No uid"}, status=400)
+
+    response = await request.respond(content_type="application/json", status=200)
+    try:
+        misses: list[dict] = await app.ctx.adb.select(
+            """
+            SELECT q.id as query_id, d.id as doc_id, d.title_pt as title, d.abstract_pt as abstract, d.keywords_pt as keywords,
+            d.author, q.query
+              FROM queries AS q
+              JOIN qrels AS qr ON q.id = qr.query_id
+              JOIN documents AS d ON qr.doc_id = d.id
+             WHERE qr.relevance = 0
+             LIMIT 5;
+            """
+        )
+        await response.send(json.dumps({"success": True, "hits": misses}))
+    except (TimeoutError, httpx.ReadTimeout, httpx.ConnectTimeout):
+        return response.json({"success": False, "error": "Failed to retrieve misses"}, status=504)
 
 
 @app.get("/annotate")
@@ -279,7 +335,6 @@ def structure_hits(hits: list[dict], sent_hits_ids: set[int]) -> list[dict]:
     shuffled_hits = shuffle_hits(hits, sent_hits_ids)
     return shuffled_hits
 
-
 def shuffle_hits(hits: list[dict], inserted: set[int]) -> list[dict]:
     shuffled_hits = []
     for hit in hits:
@@ -304,4 +359,4 @@ def shuffle_hits(hits: list[dict], inserted: set[int]) -> list[dict]:
 
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=8443, ssl=CERTS_DIR, debug=True, auto_reload=True, workers=3)
+    app.run(host="0.0.0.0", port=8443, ssl=CERTS_DIR, debug=True, auto_reload=True, workers=5)

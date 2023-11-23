@@ -19,7 +19,7 @@ os.environ["SANIC_RESPONSE_TIMEOUT"] = "30"
 
 @app.before_server_start
 async def init_resources(app):
-    app.ctx.model_name = list(config.MODELS.keys())[0]
+    app.ctx.model_name = list(config.ENCODER_MODELS.keys())[0]
     app.ctx.token_type = "sentence_with_keywords"
     app.ctx.collection_name = utils.collection_name(app.ctx.model_name, app.ctx.token_type)
     app.ctx.index_client = qdrant_client.QdrantClient(QDRANT_HOST, port=QDRANT_GRPC_PORT)

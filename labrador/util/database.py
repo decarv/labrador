@@ -37,38 +37,34 @@ configure_logger(__file__)
 
 
 class Database:
-    """
-    TODO: expand error handling
-    """
     class DatabaseError(Exception):
         pass
 
     def __init__(self):
         self._conninfo: str = config.POSTGRESQL_URL
-        self._conn_pool: Optional[psycopg_pool.ConnectionPool] = None
-        self.conn_pool_init()
+        self._conn: Optional[psycopg.Connection] = None
+        self._conn_init()
 
-    def conn_pool_init(self, minconn: int = 1, maxconn: int = 10):
-        self._conn_pool = psycopg_pool.ConnectionPool(conninfo=self._conninfo, min_size=minconn, max_size=maxconn,)
+    def _conn_init(self):
+        self._conn = psycopg.Connection.connect(conninfo=self._conninfo)
 
-    def conn_pool_close(self):
-        if self._conn_pool is None:
+    def _conn_close(self):
+        if self._conn is None:
             raise Database.DatabaseError("Connection pool is not initialized.")
-        self._conn_pool.close()
+        self._conn.close()
 
-    def getconn(self):
-        if self._conn_pool is None:
-            raise Database.DatabaseError("Connection pool is not initialized.")
-        return self._conn_pool.getconn()
+    # def getconn(self):
+    #     if self._conn is None:
+    #         raise Database.DatabaseError("Connection pool is not initialized.")
+    #     return self._conn.getconn()
 
-    def putconn(self, conn):
-        if self._conn_pool is None:
-            raise Database.DatabaseError("Connection pool is not initialized.")
-        return self._conn_pool.putconn(conn)
+#     def putconn(self, conn):
+#         if self._conn is None:
+#             raise Database.DatabaseError("Connection pool is not initialized.")
+#         return self._conn.putconn(conn)
 
     def batch_generator(self, query: str, var_args: Optional[tuple] = None, batch_size: int = 32) -> Iterator[list[dict]]:
-        conn = self.getconn()
-        with conn.cursor(row_factory=dict_row) as cur:
+        with self._conn.cursor(row_factory=dict_row) as cur:
             if var_args is None:
                 cur.execute(query)
             else:
@@ -78,54 +74,45 @@ class Database:
                 if not instances:
                     break
                 yield instances
-        self.putconn(conn)
 
     def insert(self, query: str, params: tuple):
-        conn = self.getconn()
         try:
-            with conn.cursor() as cur:
+            with self._conn.cursor() as cur:
                 cur.execute(query, params)
-                conn.commit()
+                self._conn.commit()
         except Exception as e:
             raise Database.DatabaseError(f"Error inserting many rows: {e}")
-        self.putconn(conn)
 
     def insert_many(self, query: str, params: list[tuple] = None):
-        conn = self.getconn()
         try:
-            with conn.cursor() as cur:
+            with self._conn.cursor() as cur:
                 cur.executemany(query, params)
-                conn.commit()
+                self._conn.commit()
         except Exception as e:
             raise Database.DatabaseError(f"Error inserting many rows: {e}")
-        self.putconn(conn)
 
     def insert_error(self, message: str) -> None:
-        conn = self.getconn()
         try:
-            with conn.cursor(row_factory=dict_row) as cursor:
+            with self._conn.cursor(row_factory=dict_row) as cursor:
                 curr_time = datetime.datetime.now(datetime.timezone.utc)
                 cursor.execute(
                     f"""INSERT INTO errors (message, timestamptz) 
                     VALUES (%s, %s);""",
                     (message, curr_time)
                 )
-                conn.commit()
+                self._conn.commit()
         except Exception as e:
             raise Database.DatabaseError(f"{type(e)} : {e}")
-        finally:
-            self.putconn(conn)
 
     def select(self, query, var_args=None):
-        conn = self.getconn()
-        with conn.cursor(row_factory=dict_row) as cur:
+        with self._conn.cursor(row_factory=dict_row) as cur:
             if var_args is None:
                 cur.execute(query)
             else:
                 cur.execute(query, var_args)
             results = cur.fetchall()
-        self.putconn(conn)
         return results
+
 
 class AsyncDatabase:
     """
@@ -191,7 +178,14 @@ class AsyncDatabase:
             await cur.commit()
         await self.putconn(conn)
 
-    async def queries_write(self, query):
+    async def insert_many(self, query, params):
+        aconn = await self.getconn()
+        async with aconn.cursor() as acur:
+            await acur.executemany(query, params)
+            await aconn.commit()
+        await self.putconn(aconn)
+
+    async def queries_write(self, query) -> int:
         select_query = """SELECT id FROM queries WHERE query = %s;"""
         insert_query = """INSERT INTO queries (query) VALUES (%s) ON CONFLICT (query) DO NOTHING RETURNING id;"""
         aconn = await self.getconn()
@@ -209,13 +203,18 @@ class AsyncDatabase:
                 raise e
             finally:
                 await self.putconn(aconn)
+        if isinstance(id_of_inserted_row, tuple):
+            id_of_inserted_row = id_of_inserted_row[0]
         return id_of_inserted_row
 
     async def qrels_write(self, query_id: Union[int, str], doc_id: Union[int, str], relevance: Union[int, str]) -> None:
+        delete_query = """DELETE FROM qrels WHERE query_id = %s AND doc_id = %s AND relevance = 0;"""
         insert_query = """INSERT INTO qrels (query_id, doc_id, relevance) VALUES (%s, %s, %s);"""
+
         aconn = await self.getconn()
         async with aconn.cursor() as acur:
             try:
+                await acur.execute(delete_query, (query_id, doc_id,))
                 await acur.execute(insert_query, (query_id, doc_id, relevance,))
                 await aconn.commit()
             except Exception as e:
