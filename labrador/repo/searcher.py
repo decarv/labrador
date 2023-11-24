@@ -22,7 +22,8 @@ class RepositorySearcher(Searcher):
         base_url: str = config.THESES_QUERY_URL.format(query.replace(" ", "%20"))
         page = 1
         documents_urls: list[str] = []
-        while len(documents_urls) < top_k:
+        results: list[str] = []
+        while len(results) < top_k:
             url: str = base_url + str(page)
             response: requests.Response = requests.get(url)
             if response is not None:
@@ -32,13 +33,13 @@ class RepositorySearcher(Searcher):
                     class_=["dadosLinha dadosCor1", "dadosLinha dadosCor2"]
                 )
                 documents_urls += [div.a['href'] for div in divs]
+            paths: list[str] = [Processor.extract_path_suffix(url) for url in documents_urls]
+            results.extend(self.db.select(
+                """SELECT d.id as doc_id, d.title_pt as title, d.abstract_pt as abstract, d.keywords_pt as keywords, 
+                          d.author, d.url
+                     FROM documents as d 
+                    WHERE d.url_path_suffix = ANY(%s);""", var_args=(paths,)))
             page += 1
-        paths: list[str] = [Processor.extract_path_suffix(url) for url in documents_urls]
-        results: list[dict] = self.db.select(
-            """SELECT d.id as doc_id, d.title_pt as title, d.abstract_pt as abstract, d.keywords_pt as keywords, 
-                      d.author, d.url
-                 FROM documents as d 
-                WHERE d.url_path_suffix = ANY(%s);""", var_args=(paths,))
         return results
 
 
@@ -87,3 +88,15 @@ class RepositorySearcher(Searcher):
 
     async def _filter_async(self, hits, _filters=None):
         return hits
+
+
+if __name__ == '__main__':
+    from labrador.util.database import Database
+
+    query = "aprendizagem de máquina com iot"
+    start = time.time()
+    searcher = RepositorySearcher(database=Database())
+    results = searcher.search(query, top_k=10)
+    print(len(results), results)
+
+    print(f"Total time: {time.time() - start}")
